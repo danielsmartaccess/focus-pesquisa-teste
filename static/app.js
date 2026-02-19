@@ -187,7 +187,9 @@ function renderCalcPanel(calc, municipio, uf) {
 
   const p = calc.parametros;
   const fmt = n => n.toLocaleString('pt-BR');
-  const idhTexto = (typeof p.idh === 'number' && !Number.isNaN(p.idh)) ? p.idh.toFixed(3) : 'N/D';
+  const deffTexto = (typeof p.deff_aplicado === 'number' && !Number.isNaN(p.deff_aplicado))
+    ? `x${p.deff_aplicado.toFixed(2)}`
+    : 'N/D';
 
   // KPIs rápidos
   calcKpis.innerHTML = `
@@ -212,8 +214,8 @@ function renderCalcPanel(calc, municipio, uf) {
       <span class="calc-kpi-label">Zonas Eleitorais</span>
     </div>
     <div class="calc-kpi">
-      <span class="calc-kpi-val">${idhTexto}</span>
-      <span class="calc-kpi-label">IDH Municipal</span>
+      <span class="calc-kpi-val">${deffTexto}</span>
+      <span class="calc-kpi-label">DEFF Aplicado</span>
     </div>
   `;
 

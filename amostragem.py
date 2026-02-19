@@ -49,6 +49,13 @@ CORES = {
 
 Z_MAP = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}
 
+# Parâmetros operacionais de mercado (institutos de pesquisa)
+DEFF_PADRAO_MERCADO = 1.3
+TAXA_RESPOSTA_PADRAO = 0.80
+MIN_ENTREVISTAS_MUNICIPAL = 400
+MIN_ENTREVISTAS_POR_ZONA = 12
+ARREDONDAMENTO_AMOSTRA = 10
+
 PERFIL_BENCHMARK_PADRAO = {
     "urbano_pct": 81.04,
     "rural_pct": 18.96,
@@ -113,18 +120,18 @@ def calcular_amostra_recomendada(
     Calcula o tamanho de amostra recomendado com base nos dados reais do
     município (TSE + IBGE), retornando múltiplos cenários e justificativa.
 
-    Critérios considerados:
-    - Fórmula de Cochran para população finita (base)
-    - Ajuste de design effect (DEFF) para amostragem estratificada
-    - Ajuste por heterogeneidade socioeconômica (IDH)
-    - Garantia de quota mínima por zona (≥ 10 entrevistas/zona)
+    Critérios considerados (padrão de mercado):
+    - Fórmula de Cochran para população finita (base teórica)
+    - Ajuste de design effect (DEFF) operacional
+    - Piso mínimo municipal e por zona eleitoral
+    - Alvo de campo considerando taxa de resposta
     - Múltiplos cenários de confiança e margem de erro
 
     Args:
         N_eleitores: Total de eleitores cadastrados (TSE)
         N_populacao: População total do município (IBGE)
         n_zonas: Número de zonas eleitorais
-        idh: IDH municipal (IBGE), quando disponível
+        idh: Mantido por compatibilidade, não usado no dimensionamento
         confianca: Nível de confiança desejado
         margem_erro: Margem de erro desejada
 
@@ -140,40 +147,23 @@ def calcular_amostra_recomendada(
     # ── 1. Mínimo pela fórmula de Cochran ─────────────────────────────────
     n_cochran = calcular_amostra_minima(N_eleitores, confianca, margem_erro)
 
-    # ── 2. Design Effect (DEFF) para estratificação ───────────────────────
-    # Em amostragem estratificada proporcional, DEFF ≤ 1 (mais eficiente
-    # que aleatória simples). Usamos DEFF = 1.0 como conservador.
-    # Para estratos muito desiguais em tamanho, pode subir até 1.2.
-    variancia_zonas = 1.0  # conservador
-    if n_zonas > 10:
-        variancia_zonas = 1.1  # leve ajuste para municípios com muitas zonas
-    n_ajustado_deff = math.ceil(n_cochran * variancia_zonas)
+    # ── 2. Ajuste DEFF (padrão mercado) ───────────────────────────────────
+    deff_aplicado = DEFF_PADRAO_MERCADO
+    n_ajustado_deff = math.ceil(n_cochran * deff_aplicado)
 
     # ── 3. Mínimo por zona (cobertura de todos os estratos) ───────────────
-    # Cada zona deve ter ao menos 10 entrevistas para análise intra-zona
-    minimo_por_zona = n_zonas * 10
+    # Cada zona deve ter ao menos 12 entrevistas para análise intra-zona
+    minimo_por_zona = n_zonas * MIN_ENTREVISTAS_POR_ZONA
 
-    # ── 4. Ajuste por heterogeneidade (IDH) ──────────────────────────────
-    # O IDH municipal atualizado nem sempre está disponível em fonte oficial
-    # no mesmo recorte temporal do eleitorado. Nesse caso, não aplicamos ajuste.
-    if idh is None:
-        fator_idh = 1.00
-    elif idh < 0.600:
-        fator_idh = 1.15
-    elif idh < 0.700:
-        fator_idh = 1.08
-    elif idh < 0.800:
-        fator_idh = 1.03
-    else:
-        fator_idh = 1.00
+    # ── 4. Piso municipal de mercado ─────────────────────────────────────
+    n_base = max(n_ajustado_deff, minimo_por_zona, MIN_ENTREVISTAS_MUNICIPAL)
 
-    n_ajustado_idh = math.ceil(n_ajustado_deff * fator_idh)
+    # ── 5. Valor recomendado final (entrevistas completas) ───────────────
+    recomendado = math.ceil(n_base / ARREDONDAMENTO_AMOSTRA) * ARREDONDAMENTO_AMOSTRA
 
-    # ── 5. Valor recomendado final ────────────────────────────────────────
-    # Máximo entre: Cochran ajustado, mínimo por zona
-    # Arredondado para múltiplo de 10 (operacionalmente conveniente)
-    n_base = max(n_ajustado_idh, minimo_por_zona)
-    recomendado = math.ceil(n_base / 10) * 10
+    # Alvo operacional de campo (contatos/abordagens), considerando não resposta
+    alvo_campo_sugerido = math.ceil(recomendado / TAXA_RESPOSTA_PADRAO)
+    alvo_campo_sugerido = math.ceil(alvo_campo_sugerido / ARREDONDAMENTO_AMOSTRA) * ARREDONDAMENTO_AMOSTRA
 
     # ── 6. Cenários alternativos ──────────────────────────────────────────
     cenarios = []
@@ -187,8 +177,8 @@ def calcular_amostra_recomendada(
         (0.99, 0.03, "Máximo (99% / ±3%)"),
     ]:
         n_c = calcular_amostra_minima(N_eleitores, conf, marg)
-        n_c_adj = max(math.ceil(n_c * variancia_zonas * fator_idh), minimo_por_zona)
-        n_c_final = math.ceil(n_c_adj / 10) * 10
+        n_c_adj = max(math.ceil(n_c * deff_aplicado), minimo_por_zona, MIN_ENTREVISTAS_MUNICIPAL)
+        n_c_final = math.ceil(n_c_adj / ARREDONDAMENTO_AMOSTRA) * ARREDONDAMENTO_AMOSTRA
         cenarios.append({
             "label": label,
             "confianca": conf,
@@ -213,24 +203,20 @@ def calcular_amostra_recomendada(
     margem_real_pct = round(e_real * 100, 2)
 
     # ── 8. Justificativa textual ──────────────────────────────────────────
-    trecho_idh = (
-        f"Ajuste IDH={idh:.3f} (fator {fator_idh:.2f}) → {n_ajustado_idh}. "
-        if idh is not None
-        else f"Sem ajuste de IDH (indisponível na base de referência) → {n_ajustado_idh}. "
-    )
-
     justificativa = (
         f"Fórmula de Cochran (população finita): n₀ = {n_cochran} entrevistas "
         f"para N={N_eleitores:,} eleitores, confiança {int(confianca*100)}% e margem ±{round(margem_erro*100,1)}%. "
-        f"Ajuste DEFF={variancia_zonas:.1f} para {n_zonas} zonas eleitorais → {n_ajustado_deff}. "
-        f"{trecho_idh}"
-        f"Cobertura mínima por zona (10×{n_zonas}={minimo_por_zona}). "
-        f"Valor final arredondado para múltiplo de 10: {recomendado}. "
-        f"Margem de erro real com esta amostra: ±{margem_real_pct}%."
+        f"Ajuste operacional de mercado (DEFF={deff_aplicado:.2f}) → {n_ajustado_deff}. "
+        f"Piso municipal={MIN_ENTREVISTAS_MUNICIPAL} e cobertura mínima por zona ("
+        f"{MIN_ENTREVISTAS_POR_ZONA}×{n_zonas}={minimo_por_zona}). "
+        f"Valor final recomendado (entrevistas completas), arredondado: {recomendado}. "
+        f"Alvo de campo sugerido com taxa de resposta {int(TAXA_RESPOSTA_PADRAO*100)}%: {alvo_campo_sugerido}. "
+        f"Margem de erro real estimada para entrevistas completas: ±{margem_real_pct}%."
     ).replace(",", ".")
 
     return {
         "recomendado": recomendado,
+        "alvo_campo_sugerido": alvo_campo_sugerido,
         "minimo_cochran": n_cochran,
         "minimo_por_zona": minimo_por_zona,
         "margem_real_pct": margem_real_pct,
@@ -245,8 +231,10 @@ def calcular_amostra_recomendada(
             "confianca_pct": int(confianca * 100),
             "margem_erro": margem_erro,
             "margem_erro_pct": round(margem_erro * 100, 1),
-            "deff": variancia_zonas,
-            "fator_idh": fator_idh,
+            "deff_aplicado": deff_aplicado,
+            "taxa_resposta_padrao": TAXA_RESPOSTA_PADRAO,
+            "minimo_municipal": MIN_ENTREVISTAS_MUNICIPAL,
+            "minimo_por_zona": MIN_ENTREVISTAS_POR_ZONA,
         },
     }
 
