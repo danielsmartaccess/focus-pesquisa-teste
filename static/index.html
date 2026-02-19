@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Instituto Amostral — Gerador de Planos Amostrais</title>
+    <meta name="description"
+        content="Sistema profissional de geração de planos amostrais eleitorais com base em dados do TSE e IBGE." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="/static/style.css" />
+</head>
+
+<body>
+
+    <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                        <circle cx="14" cy="14" r="13" stroke="white" stroke-width="1.5" />
+                        <path d="M7 18 L10 10 L14 16 L18 8 L21 18" stroke="#e8a020" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                        <circle cx="14" cy="16" r="1.5" fill="#e8a020" />
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <span class="logo-name">Instituto Amostral</span>
+                    <span class="logo-sub">Sistema de Planos Amostrais</span>
+                </div>
+            </div>
+            <div class="header-badge">
+                <span class="badge-dot"></span>
+                <span>MVP v1.0</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ── HERO ───────────────────────────────────────────────────────────── -->
+    <section class="hero">
+        <div class="hero-bg">
+            <div class="hero-grid"></div>
+            <div class="hero-glow glow-1"></div>
+            <div class="hero-glow glow-2"></div>
+        </div>
+        <div class="hero-content">
+            <div class="hero-tag">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M7 1L8.8 5.2L13.5 5.6L10.1 8.5L11.2 13L7 10.5L2.8 13L3.9 8.5L0.5 5.6L5.2 5.2L7 1Z"
+                        fill="#e8a020" />
+                </svg>
+                Fontes Oficiais TSE + IBGE
+            </div>
+            <h1 class="hero-title">
+                Planos Amostrais<br />
+                <span class="gradient-text">Eleitorais Precisos</span>
+            </h1>
+            <p class="hero-desc">
+                Gere planos amostrais estatisticamente válidos para qualquer município brasileiro.
+                Amostra calculada automaticamente com base nos dados oficiais mais recentes do TSE e IBGE.
+            </p>
+            <div class="hero-stats">
+                <div class="stat-item">
+                    <span class="stat-num" id="stat-municipios">—</span>
+                    <span class="stat-label">Municípios</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-num">27</span>
+                    <span class="stat-label">Estados + DF</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-num">3</span>
+                    <span class="stat-label">Formatos de Saída</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── MAIN CONTENT ───────────────────────────────────────────────────── -->
+    <main class="main">
+        <div class="container">
+
+            <!-- Formulário -->
+            <div class="card form-card" id="form-section">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path
+                                d="M10 2L12.4 7.6L18.5 8.1L14.1 12L15.5 18L10 14.8L4.5 18L5.9 12L1.5 8.1L7.6 7.6L10 2Z"
+                                fill="currentColor" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="card-title">Configurar Plano Amostral</h2>
+                        <p class="card-desc">Selecione o município — a amostra será calculada automaticamente</p>
+                    </div>
+                </div>
+
+                <form id="plano-form" class="form">
+
+                    <!-- Linha 1: UF + Município -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="uf-select" class="form-label">
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <rect x="1" y="1" width="12" height="12" rx="2" stroke="currentColor"
+                                        stroke-width="1.5" />
+                                    <path d="M4 7H10M7 4V10" stroke="currentColor" stroke-width="1.5"
+                                        stroke-linecap="round" />
+                                </svg>
+                                Estado (UF)
+                            </label>
+                            <div class="select-wrapper">
+                                <select id="uf-select" class="form-select" required>
+                                    <option value="">Carregando...</option>
+                                </select>
+                                <div class="select-arrow">
+                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                        <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="municipio-select" class="form-label">
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <path d="M7 1C4.8 1 3 2.8 3 5C3 8 7 13 7 13C7 13 11 8 11 5C11 2.8 9.2 1 7 1Z"
+                                        stroke="currentColor" stroke-width="1.5" />
+                                    <circle cx="7" cy="5" r="1.5" stroke="currentColor" stroke-width="1.5" />
+                                </svg>
+                                Município
+                            </label>
+                            <div class="select-wrapper">
+                                <select id="municipio-select" class="form-select" required disabled>
+                                    <option value="">Selecione o estado primeiro</option>
+                                </select>
+                                <div class="select-arrow">
+                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                        <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Painel de cálculo automático (aparece após selecionar município) -->
+                    <div class="calc-panel hidden" id="calc-panel">
+                        <div class="calc-panel-header">
+                            <div class="calc-panel-icon">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                    <path
+                                        d="M8 1L9.8 5.2L14.5 5.6L11.1 8.5L12.2 13L8 10.5L3.8 13L4.9 8.5L1.5 5.6L6.2 5.2L8 1Z"
+                                        fill="#e8a020" />
+                                </svg>
+                            </div>
+                            <div>
+                                <span class="calc-panel-title">Amostra Calculada Automaticamente</span>
+                                <span class="calc-panel-sub" id="calc-panel-sub">Com base nos dados do TSE e IBGE</span>
+                            </div>
+                            <div class="calc-loading" id="calc-loading">
+                                <div class="mini-spinner"></div>
+                            </div>
+                        </div>
+
+                        <!-- KPIs rápidos do cálculo -->
+                        <div class="calc-kpis" id="calc-kpis"></div>
+
+                        <!-- Cenários -->
+                        <div class="cenarios-section hidden" id="cenarios-section">
+                            <p class="cenarios-label">Escolha um cenário ou ajuste manualmente:</p>
+                            <div class="cenarios-grid" id="cenarios-grid"></div>
+                        </div>
+
+                        <!-- Justificativa -->
+                        <div class="justificativa-box hidden" id="justificativa-box">
+                            <button type="button" class="justificativa-toggle" id="justificativa-toggle">
+                                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                                    <circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.2" />
+                                    <path d="M6.5 5.5V9M6.5 4V4.5" stroke="currentColor" stroke-width="1.2"
+                                        stroke-linecap="round" />
+                                </svg>
+                                Ver justificativa estatística completa
+                                <svg class="toggle-arrow" width="11" height="11" viewBox="0 0 11 11" fill="none">
+                                    <path d="M2 3.5L5.5 7L9 3.5" stroke="currentColor" stroke-width="1.3"
+                                        stroke-linecap="round" />
+                                </svg>
+                            </button>
+                            <div class="justificativa-text hidden" id="justificativa-text"></div>
+                        </div>
+                    </div>
+
+                    <!-- Linha 2: Amostra + Formato -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="amostra-input" class="form-label">
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <path d="M2 12L5 5L8 9L10 6L12 12" stroke="currentColor" stroke-width="1.5"
+                                        stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                Tamanho da Amostra
+                                <span class="label-badge hidden" id="amostra-badge">calculado</span>
+                            </label>
+                            <div class="input-wrapper">
+                                <input type="number" id="amostra-input" class="form-input"
+                                    placeholder="Selecione o município..." min="100" max="10000" step="10" required />
+                                <span class="input-suffix">entrevistas</span>
+                            </div>
+                            <div class="form-hint" id="amostra-hint">
+                                Selecione o município para calcular automaticamente
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <path
+                                        d="M7 1L8.8 5.2L13.5 5.6L10.1 8.5L11.2 13L7 10.5L2.8 13L3.9 8.5L0.5 5.6L5.2 5.2L7 1Z"
+                                        stroke="currentColor" stroke-width="1.5" />
+                                </svg>
+                                Formato de Saída
+                            </label>
+                            <div class="format-buttons">
+                                <button type="button" class="format-btn active" data-format="pdf" id="btn-pdf">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                        <rect x="2" y="1" width="10" height="13" rx="1.5" stroke="currentColor"
+                                            stroke-width="1.5" />
+                                        <path d="M5 5H9M5 8H9M5 11H7" stroke="currentColor" stroke-width="1.2"
+                                            stroke-linecap="round" />
+                                        <path d="M10 1V4H13" stroke="currentColor" stroke-width="1.2"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                    PDF
+                                </button>
+                                <button type="button" class="format-btn" data-format="excel" id="btn-excel">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                        <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor"
+                                            stroke-width="1.5" />
+                                        <path d="M5 5H11M5 8H11M5 11H11" stroke="currentColor" stroke-width="1.2"
+                                            stroke-linecap="round" />
+                                        <path d="M2 4H14" stroke="currentColor" stroke-width="1.2" />
+                                    </svg>
+                                    Excel
+                                </button>
+                                <button type="button" class="format-btn" data-format="markdown" id="btn-md">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                        <rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor"
+                                            stroke-width="1.5" />
+                                        <path d="M4 10V6L6 9L8 6V10M10 10V6M10 8H12" stroke="currentColor"
+                                            stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                    Markdown
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Parâmetros Avançados -->
+                    <div class="advanced-section">
+                        <button type="button" class="advanced-toggle" id="advanced-toggle">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <path d="M2 4H12M4 7H10M6 10H8" stroke="currentColor" stroke-width="1.5"
+                                    stroke-linecap="round" />
+                            </svg>
+                            Parâmetros Estatísticos Avançados
+                            <svg class="toggle-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5"
+                                    stroke-linecap="round" />
+                            </svg>
+                        </button>
+                        <div class="advanced-content" id="advanced-content">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="confianca-select" class="form-label">Nível de Confiança</label>
+                                    <div class="select-wrapper">
+                                        <select id="confianca-select" class="form-select">
+                                            <option value="0.90">90% (Z = 1,645)</option>
+                                            <option value="0.95" selected>95% (Z = 1,96) — Padrão</option>
+                                            <option value="0.99">99% (Z = 2,576)</option>
+                                        </select>
+                                        <div class="select-arrow">
+                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                                <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5"
+                                                    stroke-linecap="round" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="margem-select" class="form-label">Margem de Erro</label>
+                                    <div class="select-wrapper">
+                                        <select id="margem-select" class="form-select">
+                                            <option value="0.03">±3%</option>
+                                            <option value="0.04">±4%</option>
+                                            <option value="0.05" selected>±5% — Padrão</option>
+                                            <option value="0.07">±7%</option>
+                                            <option value="0.10">±10%</option>
+                                        </select>
+                                        <div class="select-arrow">
+                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                                <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5"
+                                                    stroke-linecap="round" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="advanced-hint">
+                                Ao alterar estes parâmetros, a amostra será recalculada automaticamente.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Botão Gerar -->
+                    <button type="submit" class="btn-gerar" id="btn-gerar" disabled>
+                        <span class="btn-gerar-inner">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <path
+                                    d="M10 2L12.4 7.6L18.5 8.1L14.1 12L15.5 18L10 14.8L4.5 18L5.9 12L1.5 8.1L7.6 7.6L10 2Z"
+                                    fill="currentColor" />
+                            </svg>
+                            <span id="btn-gerar-text">Selecione o município para continuar</span>
+                        </span>
+                        <div class="btn-shimmer"></div>
+                    </button>
+
+                </form>
+            </div>
+
+            <!-- Loading -->
+            <div class="loading-overlay hidden" id="loading">
+                <div class="loading-card">
+                    <div class="loading-spinner">
+                        <div class="spinner-ring"></div>
+                        <div class="spinner-ring ring-2"></div>
+                        <div class="spinner-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <path d="M12 2L14.9 8.6L22 9.3L17 14L18.6 21L12 17.3L5.4 21L7 14L2 9.3L9.1 8.6L12 2Z"
+                                    fill="#e8a020" />
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="loading-text">Gerando plano amostral...</p>
+                    <p class="loading-sub">Calculando quotas por zona eleitoral</p>
+                    <div class="loading-steps">
+                        <div class="step active" id="step-1">
+                            <div class="step-dot"></div>
+                            <span>Carregando dados TSE</span>
+                        </div>
+                        <div class="step" id="step-2">
+                            <div class="step-dot"></div>
+                            <span>Calculando amostra mínima</span>
+                        </div>
+                        <div class="step" id="step-3">
+                            <div class="step-dot"></div>
+                            <span>Distribuindo quotas por zona</span>
+                        </div>
+                        <div class="step" id="step-4">
+                            <div class="step-dot"></div>
+                            <span>Gerando arquivos</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resultado -->
+            <div class="result-section hidden" id="result-section">
+
+                <!-- KPIs -->
+                <div class="kpi-grid" id="kpi-grid"></div>
+
+                <!-- Downloads -->
+                <div class="card downloads-card">
+                    <div class="card-header">
+                        <div class="card-icon card-icon--green">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <path d="M10 2V13M10 13L6 9M10 13L14 9" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round" />
+                                <path d="M3 15H17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="card-title">Arquivos Gerados</h2>
+                            <p class="card-desc">Clique para fazer o download</p>
+                        </div>
+                    </div>
+                    <div class="download-buttons" id="download-buttons"></div>
+                </div>
+
+                <!-- Tabela de Zonas -->
+                <div class="card table-card">
+                    <div class="card-header">
+                        <div class="card-icon card-icon--blue">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <rect x="2" y="2" width="16" height="16" rx="2" stroke="currentColor"
+                                    stroke-width="1.5" />
+                                <path d="M2 7H18M2 12H18M7 2V18" stroke="currentColor" stroke-width="1.5" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="card-title">Distribuição por Zona Eleitoral</h2>
+                            <p class="card-desc" id="table-desc">Quotas calculadas pelo método Hamilton</p>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="data-table" id="zonas-table">
+                            <thead>
+                                <tr>
+                                    <th>Zona</th>
+                                    <th>Eleitores</th>
+                                    <th>Feminino</th>
+                                    <th>Masculino</th>
+                                    <th>Seções</th>
+                                    <th>Quota</th>
+                                    <th>Q. Fem.</th>
+                                    <th>Q. Masc.</th>
+                                    <th>Proporção</th>
+                                </tr>
+                            </thead>
+                            <tbody id="zonas-tbody"></tbody>
+                            <tfoot id="zonas-tfoot"></tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Benchmark Estratificado -->
+                <div class="card table-card hidden" id="benchmark-section">
+                    <div class="card-header">
+                        <div class="card-icon card-icon--blue">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <path d="M3 16V4M3 16H17M7 16V8M11 16V6M15 16V10" stroke="currentColor" stroke-width="1.8"
+                                    stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="card-title">Benchmark de Entrega Estratificada</h2>
+                            <p class="card-desc" id="benchmark-desc">Quadros no padrão profissional de campo</p>
+                        </div>
+                    </div>
+                    <div id="benchmark-content"></div>
+                </div>
+
+                <!-- Botão Nova Consulta -->
+                <div class="nova-consulta-wrapper">
+                    <button class="btn-nova" id="btn-nova">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M2 8C2 4.7 4.7 2 8 2C10.1 2 12 3.1 13 4.8" stroke="currentColor" stroke-width="1.5"
+                                stroke-linecap="round" />
+                            <path d="M14 8C14 11.3 11.3 14 8 14C5.9 14 4 12.9 3 11.2" stroke="currentColor"
+                                stroke-width="1.5" stroke-linecap="round" />
+                            <path d="M11 2L13 5L15 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                            <path d="M1 14L3 11L5 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                        </svg>
+                        Nova Consulta
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- Erro -->
+            <div class="error-card hidden" id="error-card">
+                <div class="error-icon">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <circle cx="16" cy="16" r="14" stroke="#dc2626" stroke-width="2" />
+                        <path d="M16 9V17M16 21V23" stroke="#dc2626" stroke-width="2" stroke-linecap="round" />
+                    </svg>
+                </div>
+                <h3 class="error-title">Erro ao Gerar Plano</h3>
+                <p class="error-msg" id="error-msg"></p>
+                <button class="btn-nova" id="btn-retry">Tentar Novamente</button>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- ── FOOTER ─────────────────────────────────────────────────────────── -->
+    <footer class="footer">
+        <div class="container">
+            <p>Instituto Amostral © 2025 — MVP v1.0 — Dados: TSE + IBGE</p>
+            <p class="footer-sub">Amostragem estratificada proporcional · Fórmula de Cochran · Método de Hamilton</p>
+        </div>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>

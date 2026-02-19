@@ -1,0 +1,25 @@
+{
+  "urbano_pct": 81.04,
+  "rural_pct": 18.96,
+  "grau_instrucao": [
+    { "categoria": "Analfabeto", "pct": 4.82 },
+    { "categoria": "Lê e escreve", "pct": 5.40 },
+    { "categoria": "Ensino fundamental", "pct": 25.42 },
+    { "categoria": "Ensino médio", "pct": 48.65 },
+    { "categoria": "Superior", "pct": 15.70 }
+  ],
+  "salario": [
+    { "categoria": "Até 1 salário mínimo", "pct": 22.67 },
+    { "categoria": "Mais de 1 a 2 salários", "pct": 31.46 },
+    { "categoria": "Mais de 2 a 5 salários", "pct": 33.25 },
+    { "categoria": "Mais de 5 a 10 salários", "pct": 8.71 },
+    { "categoria": "Mais de 10 salários mínimos", "pct": 3.91 }
+  ],
+  "faixa_etaria": [
+    { "categoria": "De 16 a 24 anos", "pct": 17.36 },
+    { "categoria": "25 a 34 anos", "pct": 20.55 },
+    { "categoria": "35 a 44 anos", "pct": 20.01 },
+    { "categoria": "45 a 59 anos", "pct": 22.31 },
+    { "categoria": "Acima de 60 anos", "pct": 19.77 }
+  ]
+}
