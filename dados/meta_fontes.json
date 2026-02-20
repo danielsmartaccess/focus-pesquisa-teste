@@ -1,5 +1,5 @@
 {
-  "gerado_em": "2026-02-18T20:12:47",
+  "gerado_em": "2026-02-20T11:47:35",
   "ibge": {
     "fonte": "API IBGE Agregados 6579 / variável 9324",
     "url": "https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos/-6/variaveis/9324?localidades=N6[all]",

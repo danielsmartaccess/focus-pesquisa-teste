@@ -470,7 +470,7 @@ function renderResultado(data) {
   if (benchmark.tabelas && benchmark.tabelas.length) {
     const metodologia = benchmark.metodologia || '';
     if (benchmarkDesc) {
-      benchmarkDesc.textContent = `Urbano ${Number(benchmark.urbano_pct || 0).toFixed(2)}% • Rural ${Number(benchmark.rural_pct || 0).toFixed(2)}%`;
+      benchmarkDesc.textContent = 'Estratificação municipal real com base em dados oficiais';
     }
 
     benchmarkContent.innerHTML = `
@@ -481,10 +481,6 @@ function renderResultado(data) {
             <td><strong>${l.categoria}</strong></td>
             <td>${fmt(l.v_absoluto)}</td>
             <td>${Number(l.pct).toFixed(2)}%</td>
-            <td>${fmt(l.urbano_absoluto)}</td>
-            <td>${Number(l.urbano_pct).toFixed(2)}%</td>
-            <td>${fmt(l.rural_absoluto)}</td>
-            <td>${Number(l.rural_pct).toFixed(2)}%</td>
           </tr>
         `).join('');
 
@@ -497,7 +493,7 @@ function renderResultado(data) {
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Categoria</th><th>V. Absoluto</th><th>%</th><th>Urbano</th><th>% Urb.</th><th>Rural</th><th>% Rur.</th>
+                    <th>Categoria</th><th>V. Absoluto</th><th>%</th>
                   </tr>
                 </thead>
                 <tbody>${linhas}</tbody>
@@ -506,10 +502,6 @@ function renderResultado(data) {
                     <td><strong>TOTAL</strong></td>
                     <td><strong>${fmt(t.v_absoluto || 0)}</strong></td>
                     <td><strong>100,00%</strong></td>
-                    <td><strong>${fmt(t.urbano_absoluto || 0)}</strong></td>
-                    <td><strong>100,00%</strong></td>
-                    <td><strong>${fmt(t.rural_absoluto || 0)}</strong></td>
-                    <td><strong>100,00%</strong></td>
                   </tr>
                 </tfoot>
               </table>
@@ -517,6 +509,9 @@ function renderResultado(data) {
           </div>
         `;
       }).join('')}
+      ${(benchmark.observacoes && benchmark.observacoes.length)
+        ? `<div style="padding:0 1.25rem 1rem;color:#64748b;font-size:.84rem;">Observações: ${benchmark.observacoes.join(' | ')}</div>`
+        : ''}
     `;
     show(benchmarkSection);
   } else {

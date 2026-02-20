@@ -18,6 +18,7 @@ import io
 import json
 import os
 import tempfile
+import time
 import unicodedata
 import zipfile
 from collections import defaultdict
@@ -188,23 +189,36 @@ def buscar_recursos_tse_por_uf() -> dict[str, str]:
 
 def baixar_arquivo(url: str, destino: str):
     """Baixa arquivo com streaming para evitar estouro de memória."""
-    with requests.get(url, stream=True, timeout=180) as resp:
-        resp.raise_for_status()
-        with open(destino, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=1024 * 1024):
-                if chunk:
-                    f.write(chunk)
+    ultima_exc = None
+    for tentativa in range(1, 4):
+        try:
+            with requests.get(url, stream=True, timeout=240) as resp:
+                resp.raise_for_status()
+                with open(destino, "wb") as f:
+                    for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                        if chunk:
+                            f.write(chunk)
+            return
+        except Exception as exc:
+            ultima_exc = exc
+            if tentativa < 3:
+                espera = 2 * tentativa
+                print(f"   ⚠️  Falha de download (tentativa {tentativa}/3). Repetindo em {espera}s...")
+                time.sleep(espera)
+
+    raise RuntimeError(f"Falha ao baixar arquivo após 3 tentativas: {url}") from ultima_exc
 
 
 def processar_arquivo_tse_uf(
     uf: str,
     url_zip: str,
     canon_por_uf_norm: dict[tuple[str, str], str],
-) -> tuple[list[dict], set[str]]:
+) -> tuple[list[dict], set[str], list[dict]]:
     """
     Processa 1 UF do TSE e retorna:
       - linhas agregadas por UF, município, zona
-      - conjunto de datas de geração detectadas no arquivo
+    - conjunto de datas de geração detectadas no arquivo
+    - linhas de perfil municipal (gênero/instrução/faixa etária)
     """
     print(f"   ↳ {uf}: baixando arquivo oficial...")
 
@@ -226,6 +240,7 @@ def processar_arquivo_tse_uf(
             agg_fem = defaultdict(int)
             agg_masc = defaultdict(int)
             secoes_por_zona: defaultdict[tuple[str, str, int], set[int]] = defaultdict(set)
+            perfil_municipal: defaultdict[tuple[str, str, str, str], int] = defaultdict(int)
             datas_geracao: set[str] = set()
 
             usecols = [
@@ -235,6 +250,8 @@ def processar_arquivo_tse_uf(
                 "NR_ZONA",
                 "NR_SECAO",
                 "DS_GENERO",
+                "DS_GRAU_INSTRUCAO",
+                "DS_FAIXA_ETARIA",
                 "QT_ELEITORES",
             ]
 
@@ -308,6 +325,28 @@ def processar_arquivo_tse_uf(
                             kz = (row["SG_UF"], row["MUN_CANON"], int(row["NR_ZONA"]))
                             secoes_por_zona[kz].add(int(row["NR_SECAO"]))
 
+                    # Perfil municipal real para estratificação
+                    pcols = ["SG_UF", "MUN_CANON", "DS_GENERO", "DS_GRAU_INSTRUCAO", "DS_FAIXA_ETARIA", "QT_ELEITORES"]
+                    p = chunk[pcols].copy()
+                    p["DS_GENERO"] = p["DS_GENERO"].fillna("N/D").astype(str).str.strip()
+                    p["DS_GRAU_INSTRUCAO"] = p["DS_GRAU_INSTRUCAO"].fillna("N/D").astype(str).str.strip()
+                    p["DS_FAIXA_ETARIA"] = p["DS_FAIXA_ETARIA"].fillna("N/D").astype(str).str.strip()
+
+                    g_gen = p.groupby(["SG_UF", "MUN_CANON", "DS_GENERO"], as_index=False)["QT_ELEITORES"].sum()
+                    for _, row in g_gen.iterrows():
+                        k = (row["SG_UF"], row["MUN_CANON"], "GENERO", str(row["DS_GENERO"]))
+                        perfil_municipal[k] += int(row["QT_ELEITORES"])
+
+                    g_ins = p.groupby(["SG_UF", "MUN_CANON", "DS_GRAU_INSTRUCAO"], as_index=False)["QT_ELEITORES"].sum()
+                    for _, row in g_ins.iterrows():
+                        k = (row["SG_UF"], row["MUN_CANON"], "INSTRUCAO", str(row["DS_GRAU_INSTRUCAO"]))
+                        perfil_municipal[k] += int(row["QT_ELEITORES"])
+
+                    g_fa = p.groupby(["SG_UF", "MUN_CANON", "DS_FAIXA_ETARIA"], as_index=False)["QT_ELEITORES"].sum()
+                    for _, row in g_fa.iterrows():
+                        k = (row["SG_UF"], row["MUN_CANON"], "FAIXA_ETARIA", str(row["DS_FAIXA_ETARIA"]))
+                        perfil_municipal[k] += int(row["QT_ELEITORES"])
+
             linhas = []
             for k, total in agg_total.items():
                 linhas.append(
@@ -323,13 +362,24 @@ def processar_arquivo_tse_uf(
                 )
 
             print(f"   ↳ {uf}: {len(linhas):,} zonas agregadas")
-            return linhas, datas_geracao
+            linhas_perfil = []
+            for k, qt in perfil_municipal.items():
+                linhas_perfil.append(
+                    {
+                        "UF": k[0],
+                        "MUNICIPIO": k[1],
+                        "DIMENSAO": k[2],
+                        "CATEGORIA": k[3],
+                        "QT_ELEITORES": int(qt),
+                    }
+                )
+            return linhas, datas_geracao, linhas_perfil
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
 
-def montar_base_tse(df_ibge: pd.DataFrame, ufs_filtro: set[str] | None = None) -> tuple[pd.DataFrame, set[str]]:
+def montar_base_tse(df_ibge: pd.DataFrame, ufs_filtro: set[str] | None = None) -> tuple[pd.DataFrame, set[str], pd.DataFrame]:
     """Gera DataFrame TSE agregado por município/zona com dados reais."""
     recursos = buscar_recursos_tse_por_uf()
     if ufs_filtro:
@@ -341,13 +391,15 @@ def montar_base_tse(df_ibge: pd.DataFrame, ufs_filtro: set[str] | None = None) -
     }
 
     todas_linhas: list[dict] = []
+    todas_linhas_perfil: list[dict] = []
     datas_geracao_tse: set[str] = set()
 
     print("🌐 TSE: baixando e agregando eleitorado por seção/município/zona...")
     for uf in sorted(recursos.keys()):
         url = recursos[uf]
-        linhas_uf, datas_uf = processar_arquivo_tse_uf(uf, url, canon)
+        linhas_uf, datas_uf, linhas_perfil_uf = processar_arquivo_tse_uf(uf, url, canon)
         todas_linhas.extend(linhas_uf)
+        todas_linhas_perfil.extend(linhas_perfil_uf)
         datas_geracao_tse.update(datas_uf)
 
     df_tse = pd.DataFrame(todas_linhas)
@@ -372,7 +424,16 @@ def montar_base_tse(df_ibge: pd.DataFrame, ufs_filtro: set[str] | None = None) -
         df_tse.loc[mask_faltante, "ELEITORES_FEMININO"] += faltante[mask_faltante]
 
     df_tse = df_tse.sort_values(["UF", "MUNICIPIO", "ZONA"]).reset_index(drop=True)
-    return df_tse, datas_geracao_tse
+    df_perfil = pd.DataFrame(todas_linhas_perfil)
+    if not df_perfil.empty:
+        df_perfil = (
+            df_perfil.groupby(["UF", "MUNICIPIO", "DIMENSAO", "CATEGORIA"], as_index=False)["QT_ELEITORES"]
+            .sum()
+            .sort_values(["UF", "MUNICIPIO", "DIMENSAO", "CATEGORIA"])
+            .reset_index(drop=True)
+        )
+
+    return df_tse, datas_geracao_tse, df_perfil
 
 
 def salvar_metadados(ano_ibge: int, datas_tse: set[str]):
@@ -429,7 +490,7 @@ def main():
     df_ibge, ano_ibge = montar_base_ibge()
 
     # 2) TSE
-    df_tse, datas_tse = montar_base_tse(df_ibge, ufs_filtro=ufs_filtro)
+    df_tse, datas_tse, df_tse_perfil = montar_base_tse(df_ibge, ufs_filtro=ufs_filtro)
 
     # Se filtro por UF foi aplicado, mantém IBGE compatível com TSE gerado
     if ufs_filtro:
@@ -438,9 +499,12 @@ def main():
     # 3) Salva arquivos
     caminho_ibge = os.path.join(DADOS_DIR, "ibge.csv")
     caminho_tse = os.path.join(DADOS_DIR, "tse.csv")
+    caminho_tse_perfil = os.path.join(DADOS_DIR, "tse_perfil.csv")
 
     df_ibge.to_csv(caminho_ibge, index=False, encoding="utf-8-sig")
     df_tse.to_csv(caminho_tse, index=False, encoding="utf-8-sig")
+    if not df_tse_perfil.empty:
+        df_tse_perfil.to_csv(caminho_tse_perfil, index=False, encoding="utf-8-sig")
     salvar_metadados(ano_ibge, datas_tse)
 
     # 4) Resumo
@@ -448,6 +512,8 @@ def main():
     print("📊 Resumo final")
     print(f"   IBGE: {len(df_ibge):,} municípios")
     print(f"   TSE : {len(df_tse):,} zonas eleitorais agregadas")
+    if not df_tse_perfil.empty:
+        print(f"   TSE Perfil: {len(df_tse_perfil):,} linhas municipais de estratificação")
     print(f"   Arquivos: {caminho_ibge} | {caminho_tse}")
     print(f"   Referência IBGE: {ano_ibge}")
     if datas_tse:

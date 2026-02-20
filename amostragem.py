@@ -56,31 +56,21 @@ MIN_ENTREVISTAS_MUNICIPAL = 400
 MIN_ENTREVISTAS_POR_ZONA = 12
 ARREDONDAMENTO_AMOSTRA = 10
 
-PERFIL_BENCHMARK_PADRAO = {
-    "urbano_pct": 81.04,
-    "rural_pct": 18.96,
-    "salario": [
-        {"categoria": "Até 1 salário mínimo", "pct": 22.67},
-        {"categoria": "Mais de 1 a 2 salários", "pct": 31.46},
-        {"categoria": "Mais de 2 a 5 salários", "pct": 33.25},
-        {"categoria": "Mais de 5 a 10 salários", "pct": 8.71},
-        {"categoria": "Mais de 10 salários mínimos", "pct": 3.91},
-    ],
-    "grau_instrucao": [
-        {"categoria": "Analfabeto", "pct": 4.82},
-        {"categoria": "Lê e escreve", "pct": 5.40},
-        {"categoria": "Ensino fundamental", "pct": 25.42},
-        {"categoria": "Ensino médio", "pct": 48.65},
-        {"categoria": "Superior", "pct": 15.70},
-    ],
-    "faixa_etaria": [
-        {"categoria": "De 16 a 24 anos", "pct": 17.36},
-        {"categoria": "25 a 34 anos", "pct": 20.55},
-        {"categoria": "35 a 44 anos", "pct": 20.01},
-        {"categoria": "45 a 59 anos", "pct": 22.31},
-        {"categoria": "Acima de 60 anos", "pct": 19.77},
-    ],
-}
+ORDEM_INSTRUCAO = [
+    "Analfabeto",
+    "Lê e escreve",
+    "Ensino fundamental",
+    "Ensino médio",
+    "Superior",
+]
+
+ORDEM_FAIXA = [
+    "De 16 a 24 anos",
+    "25 a 34 anos",
+    "35 a 44 anos",
+    "45 a 59 anos",
+    "Acima de 60 anos",
+]
 
 
 def calcular_amostra_minima(N: int, confianca: float = 0.95, margem_erro: float = 0.05) -> int:
@@ -292,45 +282,25 @@ def _alocar_hamilton(total: int, pcts: list[float]) -> list[int]:
     return quotas
 
 
-def _split_urbano_rural(valores_abs: list[int], urbano_pct: float) -> tuple[list[int], list[int]]:
-    total = sum(valores_abs)
-    alvo_urbano = round(total * (urbano_pct / 100.0))
-    pcts_linha = [float(v) if v > 0 else 0.0 for v in valores_abs]
-    urbano = _alocar_hamilton(alvo_urbano, pcts_linha)
+def _calcular_percentuais_municipais(df: pd.DataFrame, coluna_categoria: str, ordem: list[str]) -> list[dict]:
+    if df.empty:
+        return []
+    base = (
+        df.groupby(coluna_categoria, as_index=False)["QT_ELEITORES"]
+        .sum()
+        .sort_values("QT_ELEITORES", ascending=False)
+    )
+    total = int(base["QT_ELEITORES"].sum())
+    if total <= 0:
+        return []
 
-    # Não pode exceder o absoluto de cada linha
-    urbano = [min(urbano[i], valores_abs[i]) for i in range(len(valores_abs))]
-    diff = alvo_urbano - sum(urbano)
-    if diff > 0:
-        for i in range(len(urbano)):
-            if diff == 0:
-                break
-            espaco = valores_abs[i] - urbano[i]
-            if espaco > 0:
-                add = min(espaco, diff)
-                urbano[i] += add
-                diff -= add
-
-    rural = [max(valores_abs[i] - urbano[i], 0) for i in range(len(valores_abs))]
-    return urbano, rural
-
-
-def _carregar_perfil_benchmark() -> dict:
-    caminho = os.path.join(DADOS_DIR, "perfil_benchmark.json")
-    if os.path.exists(caminho):
-        try:
-            with open(caminho, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return {
-                "urbano_pct": float(data.get("urbano_pct", PERFIL_BENCHMARK_PADRAO["urbano_pct"])),
-                "rural_pct": float(data.get("rural_pct", PERFIL_BENCHMARK_PADRAO["rural_pct"])),
-                "salario": data.get("salario", PERFIL_BENCHMARK_PADRAO["salario"]),
-                "grau_instrucao": data.get("grau_instrucao", PERFIL_BENCHMARK_PADRAO["grau_instrucao"]),
-                "faixa_etaria": data.get("faixa_etaria", PERFIL_BENCHMARK_PADRAO["faixa_etaria"]),
-            }
-        except Exception:
-            pass
-    return PERFIL_BENCHMARK_PADRAO
+    mapa = {str(row[coluna_categoria]): int(row["QT_ELEITORES"]) for _, row in base.iterrows()}
+    categorias = ordem if ordem else list(mapa.keys())
+    out = []
+    for cat in categorias:
+        qt = mapa.get(cat, 0)
+        out.append({"categoria": cat, "pct": round((qt / total) * 100, 6)})
+    return out
 
 
 def _mapear_faixa_etaria_tse(ds: str) -> str | None:
@@ -367,26 +337,19 @@ def _mapear_instrucao_tse(ds: str) -> str | None:
     return None
 
 
-def _gerar_tabela_dimensao(titulo: str, categorias_pct: list[dict], amostra: int, urbano_pct: float, fonte: str) -> dict:
+def _gerar_tabela_dimensao(titulo: str, categorias_pct: list[dict], amostra: int, fonte: str) -> dict:
     categorias = [c["categoria"] for c in categorias_pct]
     pcts = [float(c["pct"]) for c in categorias_pct]
     abs_vals = _alocar_hamilton(amostra, pcts)
-    urbano_abs, rural_abs = _split_urbano_rural(abs_vals, urbano_pct)
 
     linhas = []
     for i, cat in enumerate(categorias):
         pct_real = round((abs_vals[i] / amostra) * 100, 2) if amostra else 0.0
-        pct_urb = round((urbano_abs[i] / sum(urbano_abs)) * 100, 2) if sum(urbano_abs) else 0.0
-        pct_rur = round((rural_abs[i] / sum(rural_abs)) * 100, 2) if sum(rural_abs) else 0.0
         linhas.append(
             {
                 "categoria": cat,
                 "v_absoluto": int(abs_vals[i]),
                 "pct": pct_real,
-                "urbano_absoluto": int(urbano_abs[i]),
-                "urbano_pct": pct_urb,
-                "rural_absoluto": int(rural_abs[i]),
-                "rural_pct": pct_rur,
             }
         )
 
@@ -397,23 +360,15 @@ def _gerar_tabela_dimensao(titulo: str, categorias_pct: list[dict], amostra: int
         "total": {
             "v_absoluto": int(sum(abs_vals)),
             "pct": 100.0,
-            "urbano_absoluto": int(sum(urbano_abs)),
-            "urbano_pct": 100.0,
-            "rural_absoluto": int(sum(rural_abs)),
-            "rural_pct": 100.0,
         },
     }
 
 
 def calcular_benchmark_estratos(df_mun: pd.DataFrame, amostra_final: int, uf: str, municipio: str) -> dict:
     """
-    Calcula quadro benchmark de entrega (estilo instituto de referência),
-    mantendo as cotas por zona já existentes e adicionando cortes por:
-    gênero, grau de instrução, salário e faixa etária com urbano/rural.
+    Calcula estratificação municipal real para o plano de campo, sem perfis
+    sintéticos. Usa apenas dados oficiais observados para o município.
     """
-    perfil = _carregar_perfil_benchmark()
-    urbano_pct = float(perfil.get("urbano_pct", 81.04))
-
     total_eleitores = int(df_mun["ELEITORES_TOTAL"].sum())
     fem = int(df_mun["ELEITORES_FEMININO"].sum())
     masc = int(df_mun["ELEITORES_MASCULINO"].sum())
@@ -427,127 +382,66 @@ def calcular_benchmark_estratos(df_mun: pd.DataFrame, amostra_final: int, uf: st
             {"categoria": "MASCULINO", "pct": masc_pct},
         ],
         amostra_final,
-        urbano_pct,
         "TSE (eleitorado municipal por zona)",
     )
 
-    # Perfil extra por instrução/faixa etária: tenta fonte local detalhada, senão perfil calibrado
+    # Perfil por instrução/faixa etária com base municipal real (TSE)
     caminho_perfil_tse = os.path.join(DADOS_DIR, "tse_perfil.csv")
-    tabela_instrucao = None
-    tabela_faixa = None
+    tabelas = [tabela_genero]
+    observacoes = []
 
     if os.path.exists(caminho_perfil_tse):
         try:
             df_perfil = pd.read_csv(caminho_perfil_tse, encoding="utf-8-sig")
-            mask = (df_perfil["UF"] == uf) & (
+            mask = (df_perfil["UF"].str.upper() == uf.upper()) & (
                 df_perfil["MUNICIPIO"].str.lower() == municipio.lower()
             )
             df_pm = df_perfil[mask].copy()
             if not df_pm.empty:
-                # Instrução
-                m_instr = defaultdict(int)
-                m_faixa = defaultdict(int)
-                for _, row in df_pm.iterrows():
-                    qt = int(row.get("QT_ELEITORES", 0))
-                    c_instr = _mapear_instrucao_tse(row.get("DS_GRAU_INSTRUCAO", ""))
-                    c_faixa = _mapear_faixa_etaria_tse(row.get("DS_FAIXA_ETARIA", ""))
-                    if c_instr:
-                        m_instr[c_instr] += qt
-                    if c_faixa:
-                        m_faixa[c_faixa] += qt
+                if "DIMENSAO" in df_pm.columns and "CATEGORIA" in df_pm.columns:
+                    df_i = df_pm[df_pm["DIMENSAO"] == "INSTRUCAO"].copy()
+                    df_i["CATEGORIA"] = df_i["CATEGORIA"].apply(_mapear_instrucao_tse)
+                    df_i = df_i[df_i["CATEGORIA"].notna()].copy()
+                    instr_pct = _calcular_percentuais_municipais(df_i, "CATEGORIA", ORDEM_INSTRUCAO)
+                    if instr_pct:
+                        tabelas.append(
+                            _gerar_tabela_dimensao(
+                                "GRAU DE INSTRUÇÃO",
+                                instr_pct,
+                                amostra_final,
+                                "TSE (perfil municipal por seção eleitoral)",
+                            )
+                        )
 
-                ordem_instr = [
-                    "Analfabeto",
-                    "Lê e escreve",
-                    "Ensino fundamental",
-                    "Ensino médio",
-                    "Superior",
-                ]
-                total_instr = sum(m_instr.values())
-                if total_instr > 0:
-                    instr_pct = [
-                        {
-                            "categoria": c,
-                            "pct": round((m_instr.get(c, 0) / total_instr) * 100, 4),
-                        }
-                        for c in ordem_instr
-                    ]
-                    tabela_instrucao = _gerar_tabela_dimensao(
-                        "GRAU DE INSTRUÇÃO",
-                        instr_pct,
-                        amostra_final,
-                        urbano_pct,
-                        "TSE (perfil por seção eleitoral)",
-                    )
-
-                ordem_faixa = [
-                    "De 16 a 24 anos",
-                    "25 a 34 anos",
-                    "35 a 44 anos",
-                    "45 a 59 anos",
-                    "Acima de 60 anos",
-                ]
-                total_faixa = sum(m_faixa.values())
-                if total_faixa > 0:
-                    faixa_pct = [
-                        {
-                            "categoria": c,
-                            "pct": round((m_faixa.get(c, 0) / total_faixa) * 100, 4),
-                        }
-                        for c in ordem_faixa
-                    ]
-                    tabela_faixa = _gerar_tabela_dimensao(
-                        "FAIXA ETÁRIA",
-                        faixa_pct,
-                        amostra_final,
-                        urbano_pct,
-                        "TSE (perfil por seção eleitoral)",
-                    )
+                if "DIMENSAO" in df_pm.columns and "CATEGORIA" in df_pm.columns:
+                    df_f = df_pm[df_pm["DIMENSAO"] == "FAIXA_ETARIA"].copy()
+                    df_f["CATEGORIA"] = df_f["CATEGORIA"].apply(_mapear_faixa_etaria_tse)
+                    df_f = df_f[df_f["CATEGORIA"].notna()].copy()
+                    faixa_pct = _calcular_percentuais_municipais(df_f, "CATEGORIA", ORDEM_FAIXA)
+                    if faixa_pct:
+                        tabelas.append(
+                            _gerar_tabela_dimensao(
+                                "FAIXA ETÁRIA",
+                                faixa_pct,
+                                amostra_final,
+                                "TSE (perfil municipal por seção eleitoral)",
+                            )
+                        )
+            else:
+                observacoes.append("Perfil municipal detalhado (instrução/faixa etária) não encontrado para este município.")
         except Exception:
-            tabela_instrucao = None
-            tabela_faixa = None
-
-    if tabela_instrucao is None:
-        tabela_instrucao = _gerar_tabela_dimensao(
-            "GRAU DE INSTRUÇÃO",
-            perfil.get("grau_instrucao", PERFIL_BENCHMARK_PADRAO["grau_instrucao"]),
-            amostra_final,
-            urbano_pct,
-            "Perfil calibrado (benchmark configurável)",
-        )
-
-    if tabela_faixa is None:
-        tabela_faixa = _gerar_tabela_dimensao(
-            "FAIXA ETÁRIA",
-            perfil.get("faixa_etaria", PERFIL_BENCHMARK_PADRAO["faixa_etaria"]),
-            amostra_final,
-            urbano_pct,
-            "Perfil calibrado (benchmark configurável)",
-        )
-
-    tabela_salario = _gerar_tabela_dimensao(
-        "SALÁRIO",
-        perfil.get("salario", PERFIL_BENCHMARK_PADRAO["salario"]),
-        amostra_final,
-        urbano_pct,
-        "Perfil calibrado (benchmark configurável)",
-    )
+            observacoes.append("Falha ao ler perfil municipal detalhado (tse_perfil.csv).")
+    else:
+        observacoes.append("Arquivo tse_perfil.csv não encontrado. Rode gerar_dados.py para habilitar estratificação municipal completa.")
 
     return {
-        "urbano_pct": round(urbano_pct, 2),
-        "rural_pct": round(100.0 - urbano_pct, 2),
         "metodologia": (
-            "Benchmark de entrega profissional: quotas proporcionais calculadas por método de Hamilton, "
-            "preservando soma exata da amostra final. Gênero é ancorado no eleitorado real municipal (TSE). "
-            "Quando disponível, faixa etária e instrução são ancoradas no perfil TSE por seção; salário e corte "
-            "urbano/rural utilizam perfil calibrável em arquivo local de benchmark, mantendo rastreabilidade de fonte."
+            "Estratificação municipal real: quotas calculadas por método de Hamilton com soma exata da amostra final. "
+            "As proporções são derivadas exclusivamente de dados oficiais observados do município (TSE), "
+            "sem uso de percentuais fixos de benchmark para dimensionamento do plano."
         ),
-        "tabelas": [
-            tabela_genero,
-            tabela_instrucao,
-            tabela_salario,
-            tabela_faixa,
-        ],
+        "observacoes": observacoes,
+        "tabelas": tabelas,
     }
 
 
@@ -562,11 +456,10 @@ def gerar_texto_metodologia_institucional(meta: dict, benchmark: dict | None = N
 
     bloco_benchmark = (
         "Complementarmente, o plano incorpora benchmark estratificado de execução de campo "
-        "(gênero, grau de instrução, faixa etária, renda e recorte urbano/rural), com alocação por "
-        "maior resto (Hamilton) para preservar a soma exata das quotas. "
+        "(gênero, grau de instrução e faixa etária), com alocação por maior resto (Hamilton) para "
+        "preservar a soma exata das quotas. "
         "Gênero é ancorado no eleitorado municipal observado no TSE; instrução e faixa etária são "
-        "ancoradas no perfil detalhado por seção quando disponível, com fallback para perfil calibrado "
-        "e auditável em configuração local."
+        "ancoradas no perfil detalhado por seção do próprio município, sem uso de percentuais sintéticos."
         if benchmark and benchmark.get("tabelas")
         else ""
     )
@@ -930,7 +823,7 @@ def gerar_excel(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | No
     # ── Aba 3: Benchmark (entrega estratificada) ──────────────────────────
     if benchmark:
         ws3 = wb.create_sheet("Benchmark")
-        ws3.merge_cells("A1:G1")
+        ws3.merge_cells("A1:C1")
         t = ws3["A1"]
         t.value = f"BENCHMARK ESTRATIFICADO — {meta['municipio'].upper()} / {meta['uf']}"
         t.font = Font(bold=True, size=12, color="FFFFFF", name="Calibri")
@@ -938,7 +831,7 @@ def gerar_excel(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | No
         t.alignment = Alignment(horizontal="center", vertical="center")
         ws3.row_dimensions[1].height = 28
 
-        ws3.merge_cells("A2:G2")
+        ws3.merge_cells("A2:C2")
         s = ws3["A2"]
         s.value = benchmark.get("metodologia", "")
         s.font = Font(size=9, color="333333", name="Calibri")
@@ -946,9 +839,9 @@ def gerar_excel(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | No
         ws3.row_dimensions[2].height = 32
 
         linha = 4
-        cab = ["Categoria", "V. Absoluto", "%", "Urbano", "% Urb.", "Rural", "% Rur."]
+        cab = ["Categoria", "V. Absoluto", "%"]
         for tabela in benchmark.get("tabelas", []):
-            ws3.merge_cells(f"A{linha}:G{linha}")
+            ws3.merge_cells(f"A{linha}:C{linha}")
             ch = ws3[f"A{linha}"]
             ch.value = f"{tabela.get('titulo', '')}  |  Fonte: {tabela.get('fonte', '')}"
             ch.font = Font(bold=True, size=10, color="FFFFFF", name="Calibri")
@@ -967,10 +860,6 @@ def gerar_excel(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | No
                     item.get("categoria", ""),
                     int(item.get("v_absoluto", 0)),
                     f"{float(item.get('pct', 0)):.2f}%",
-                    int(item.get("urbano_absoluto", 0)),
-                    f"{float(item.get('urbano_pct', 0)):.2f}%",
-                    int(item.get("rural_absoluto", 0)),
-                    f"{float(item.get('rural_pct', 0)):.2f}%",
                 ]
                 for j, v in enumerate(vals):
                     estilo_celula(ws3, linha, j + 1, v, cor_fundo="FFFFFF" if linha % 2 else cor_claro, alinhamento="center" if j else "left", tamanho=9)
@@ -982,17 +871,21 @@ def gerar_excel(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | No
                 "TOTAL",
                 int(total.get("v_absoluto", 0)),
                 "100,00%",
-                int(total.get("urbano_absoluto", 0)),
-                "100,00%",
-                int(total.get("rural_absoluto", 0)),
-                "100,00%",
             ]
             for j, v in enumerate(vals_t):
                 estilo_celula(ws3, linha, j + 1, v, negrito=True, cor_fundo=cor_alt, alinhamento="center" if j else "left", tamanho=9)
             ws3.row_dimensions[linha].height = 18
             linha += 2
 
-        larguras3 = [32, 12, 10, 12, 10, 12, 10]
+        if benchmark.get("observacoes"):
+            ws3.merge_cells(f"A{linha}:C{linha}")
+            o = ws3[f"A{linha}"]
+            o.value = "Observações: " + " | ".join(benchmark.get("observacoes", []))
+            o.font = Font(size=9, color="666666", name="Calibri")
+            o.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            ws3.row_dimensions[linha].height = 34
+
+        larguras3 = [36, 14, 12]
         for i, larg in enumerate(larguras3):
             ws3.column_dimensions[get_column_letter(i + 1)].width = larg
 
@@ -1245,29 +1138,21 @@ def gerar_pdf(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | None
 
         for tabela in benchmark.get("tabelas", []):
             elementos.append(Paragraph(f"<b>{tabela.get('titulo','')}</b> — {tabela.get('fonte','')}", estilo_normal))
-            dados_b = [["Categoria", "V.Abs", "%", "Urbano", "%", "Rural", "%"]]
+            dados_b = [["Categoria", "V.Abs", "%"]]
             for item in tabela.get("linhas", []):
                 dados_b.append([
                     item.get("categoria", ""),
                     str(int(item.get("v_absoluto", 0))),
                     f"{float(item.get('pct', 0)):.2f}%",
-                    str(int(item.get("urbano_absoluto", 0))),
-                    f"{float(item.get('urbano_pct', 0)):.2f}%",
-                    str(int(item.get("rural_absoluto", 0))),
-                    f"{float(item.get('rural_pct', 0)):.2f}%",
                 ])
             tot = tabela.get("total", {})
             dados_b.append([
                 "TOTAL",
                 str(int(tot.get("v_absoluto", 0))),
                 "100,00%",
-                str(int(tot.get("urbano_absoluto", 0))),
-                "100,00%",
-                str(int(tot.get("rural_absoluto", 0))),
-                "100,00%",
             ])
 
-            tb = Table(dados_b, colWidths=[5.6*cm, 1.8*cm, 1.5*cm, 1.8*cm, 1.5*cm, 1.8*cm, 1.5*cm], repeatRows=1)
+            tb = Table(dados_b, colWidths=[9.2*cm, 2.5*cm, 2.3*cm], repeatRows=1)
             tb.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), CORES["secundaria"]),
                 ("TEXTCOLOR", (0, 0), (-1, 0), CORES["branco"]),
@@ -1283,6 +1168,10 @@ def gerar_pdf(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | None
             ]))
             elementos.append(tb)
             elementos.append(Spacer(1, 0.25*cm))
+
+        if benchmark.get("observacoes"):
+            elementos.append(Paragraph("Observações: " + " | ".join(benchmark.get("observacoes", [])), estilo_rodape))
+            elementos.append(Spacer(1, 0.2*cm))
     
     # ── Metodologia ────────────────────────────────────────────────────────
     elementos.append(Spacer(1, 0.8*cm))
@@ -1376,18 +1265,20 @@ def gerar_markdown(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict |
         for tabela in benchmark.get("tabelas", []):
             linhas.append(f"### {tabela.get('titulo','')}\n")
             linhas.append(f"Fonte: {tabela.get('fonte','')}\n")
-            linhas.append("| Categoria | V. Absoluto | % | Urbano | % Urb. | Rural | % Rur. |")
-            linhas.append("|-----------|-------------|---|--------|--------|-------|--------|")
+            linhas.append("| Categoria | V. Absoluto | % |")
+            linhas.append("|-----------|-------------|---|")
             for item in tabela.get("linhas", []):
                 linhas.append(
-                    f"| {item.get('categoria','')} | {int(item.get('v_absoluto',0))} | {float(item.get('pct',0)):.2f}% | "
-                    f"{int(item.get('urbano_absoluto',0))} | {float(item.get('urbano_pct',0)):.2f}% | "
-                    f"{int(item.get('rural_absoluto',0))} | {float(item.get('rural_pct',0)):.2f}% |"
+                    f"| {item.get('categoria','')} | {int(item.get('v_absoluto',0))} | {float(item.get('pct',0)):.2f}% |"
                 )
             t = tabela.get("total", {})
             linhas.append(
-                f"| **TOTAL** | **{int(t.get('v_absoluto',0))}** | **100,00%** | **{int(t.get('urbano_absoluto',0))}** | **100,00%** | **{int(t.get('rural_absoluto',0))}** | **100,00%** |"
+                f"| **TOTAL** | **{int(t.get('v_absoluto',0))}** | **100,00%** |"
             )
+            linhas.append("")
+
+        if benchmark.get("observacoes"):
+            linhas.append("Observações: " + " | ".join(benchmark.get("observacoes", [])))
             linhas.append("")
 
         linhas.append("\n---\n")

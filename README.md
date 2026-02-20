@@ -39,7 +39,7 @@ mvp/
 ├── dados/
 │   ├── tse.csv       # Eleitorado por zona eleitoral
 │   └── ibge.csv      # Dados populacionais IBGE
-│   └── perfil_benchmark.json # Perfil calibrável (salário, faixa, urbano/rural)
+│   └── tse_perfil.csv # Perfil municipal real (gênero, instrução, faixa etária)
 ├── outputs/          # Arquivos gerados (PDF, Excel, MD)
 └── static/
     ├── index.html    # Frontend
@@ -87,8 +87,8 @@ mvp/
 
 - A aplicação preserva o plano por zona eleitoral e acrescenta os quadros no padrão de entrega de institutos de pesquisa.
 - **Gênero**: calculado com base no eleitorado real do município (TSE).
-- **Instrução/Faixa etária**: usa perfil TSE por seção quando disponível; fallback para perfil calibrado.
-- **Salário e Urbano/Rural**: perfil calibrável em `dados/perfil_benchmark.json`.
+- **Instrução/Faixa etária**: calculadas com base no perfil municipal real do TSE por seção (`dados/tse_perfil.csv`).
+- Não são usados percentuais sintéticos fixos no cálculo de estratificação municipal.
 - Todos os quadros usam alocação por maior resto (Hamilton), garantindo soma exata da amostra final.
 
 ---
