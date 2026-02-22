@@ -1,6 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Instituto Amostral — MVP Stylesheet
    Design: Dark premium with blue/gold accent
+  Organização didática:
+  1) Tokens visuais (cores, sombras, raios)
+  2) Estrutura base (reset, layout, cards, formulários)
+  3) Componentes funcionais (painel de cálculo, tabelas, botões)
+  4) Estados e responsividade (hover, hidden, media queries)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── TOKENS ─────────────────────────────────────────────────────────────── */

@@ -3,6 +3,12 @@ Instituto Amostral — MVP Backend
 FastAPI server para geração de planos amostrais.
 """
 
+# Mapa didático da API:
+# - `/ufs` e `/municipios`: catálogo para preenchimento do frontend.
+# - `/calcular-amostra`: pré-cálculo técnico para sugerir amostra ideal.
+# - `/plano`: gera o plano completo e retorna links de download.
+# - `/download/*`: entrega os artefatos gerados no diretório `outputs`.
+
 import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
@@ -87,6 +93,8 @@ def get_calcular_amostra(
     - Justificativa estatística completa
     """
     try:
+        # Esse endpoint é chamado em tempo de configuração do formulário,
+        # antes da geração final de arquivos.
         resultado = calcular_amostra_municipio(
             uf=uf,
             municipio=municipio,
@@ -117,6 +125,8 @@ def get_plano(
     Retorna metadados e caminhos dos arquivos gerados.
     """
     try:
+        # Fluxo principal: calcula quotas, gera arquivos e devolve metadados
+        # estruturados para renderização do resultado no frontend.
         resultado = gerar_plano(
             uf=uf,
             municipio=municipio,
@@ -131,7 +141,7 @@ def get_plano(
             "meta": resultado["meta"],
             "arquivos": {},
             "zonas": resultado.get("zonas", []),
-            "benchmark": resultado.get("benchmark", {}),
+            "estratificacao_real": resultado.get("estratificacao_real", {}),
         }
         
         if "excel" in resultado:

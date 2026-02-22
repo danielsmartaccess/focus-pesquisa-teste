@@ -1,6 +1,12 @@
 /**
  * Instituto Amostral — Frontend JS v2.1
  * Usa classList.add/remove('hidden') para mostrar/ocultar elementos.
+ *
+ * Fluxo geral de UX:
+ * 1) Carrega UFs e municípios.
+ * 2) Ao escolher município, chama `/calcular-amostra` e sugere valor.
+ * 3) Usuário confirma/ajusta e envia para `/plano`.
+ * 4) Tela final exibe KPIs, tabela de zonas e botões de download.
  */
 
 const API = '';  // mesmo host
@@ -48,6 +54,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupEventListeners() {
+  // Centraliza todos os handlers de interface para manter previsibilidade do
+  // comportamento da tela (seleção, cálculo automático, submit e reset).
   ufSelect.addEventListener('change', () => {
     const uf = ufSelect.value;
     if (uf) carregarMunicipios(uf);
@@ -157,7 +165,7 @@ async function calcularAmostra() {
   const confianca = confiancaSelect.value;
   const margemErro = margemSelect.value;
 
-  // Mostra painel com loading
+  // Mostra painel com loading antes da chamada de rede para feedback imediato.
   show(calcPanel);
   show(calcLoading);
   calcKpis.innerHTML = '';
@@ -182,6 +190,8 @@ async function calcularAmostra() {
 
 // ─── Renderizar Painel de Cálculo ────────────────────────────────────────────
 function renderCalcPanel(calc, municipio, uf) {
+  // Converte o payload técnico da API em elementos visuais acionáveis
+  // (KPIs, cenários clicáveis e justificativa expandível).
   hide(calcLoading);
   calcPanelSub.textContent = `${municipio} / ${uf} — baseado em dados TSE + IBGE`;
 
@@ -270,6 +280,8 @@ function renderCalcPanel(calc, municipio, uf) {
 }
 
 function atualizarHintAmostra(valor, minimo, modo) {
+  // Mensagens contextuais para deixar claro se o valor foi automático,
+  // escolhido por cenário ou digitado manualmente.
   const fmt = n => n.toLocaleString('pt-BR');
   if (modo === 'automático') {
     amostraHint.innerHTML = `✅ Calculado automaticamente (mínimo Cochran: <strong>${fmt(minimo)}</strong>). Você pode ajustar.`;
@@ -303,6 +315,8 @@ function resetCalcPanel() {
 
 // ─── Gerar Plano ─────────────────────────────────────────────────────────────
 async function gerarPlano() {
+  // Envio final da configuração. A resposta inclui metadados, zonas e links
+  // de arquivos gerados (PDF/Excel/Markdown, conforme seleção).
   const uf = ufSelect.value;
   const municipio = municipioSelect.value;
   const amostra = parseInt(amostraInput.value) || null;
@@ -364,6 +378,8 @@ function animarSteps() {
 
 // ─── Renderizar Resultado ────────────────────────────────────────────────────
 function renderResultado(data) {
+  // Renderização única da tela de resultado para evitar inconsistências entre
+  // KPI, tabela e seção de estratificação real.
   const meta = data.meta;
   const fmt = n => (n ?? 0).toLocaleString('pt-BR');
 
@@ -461,21 +477,21 @@ function renderResultado(data) {
     </tr>
   `;
 
-  // Benchmark estratificado
-  const benchmark = data.benchmark || {};
-  const benchmarkSection = document.getElementById('benchmark-section');
-  const benchmarkContent = document.getElementById('benchmark-content');
-  const benchmarkDesc = document.getElementById('benchmark-desc');
+  // Estratificação real
+  const estratificacaoReal = data.estratificacao_real || {};
+  const estratificacaoRealSection = document.getElementById('estratificacao-real-section');
+  const estratificacaoRealContent = document.getElementById('estratificacao-real-content');
+  const estratificacaoRealDesc = document.getElementById('estratificacao-real-desc');
 
-  if (benchmark.tabelas && benchmark.tabelas.length) {
-    const metodologia = benchmark.metodologia || '';
-    if (benchmarkDesc) {
-      benchmarkDesc.textContent = 'Estratificação municipal real com base em dados oficiais';
+  if (estratificacaoReal.tabelas && estratificacaoReal.tabelas.length) {
+    const metodologia = estratificacaoReal.metodologia || '';
+    if (estratificacaoRealDesc) {
+      estratificacaoRealDesc.textContent = 'Estratificação municipal real com base em dados oficiais';
     }
 
-    benchmarkContent.innerHTML = `
+    estratificacaoRealContent.innerHTML = `
       <div style="padding: 0 1.25rem 1rem; color:#475569; font-size:.92rem; line-height:1.45;">${metodologia}</div>
-      ${benchmark.tabelas.map(tb => {
+      ${estratificacaoReal.tabelas.map(tb => {
         const linhas = (tb.linhas || []).map(l => `
           <tr>
             <td><strong>${l.categoria}</strong></td>
@@ -509,14 +525,14 @@ function renderResultado(data) {
           </div>
         `;
       }).join('')}
-      ${(benchmark.observacoes && benchmark.observacoes.length)
-        ? `<div style="padding:0 1.25rem 1rem;color:#64748b;font-size:.84rem;">Observações: ${benchmark.observacoes.join(' | ')}</div>`
+      ${(estratificacaoReal.observacoes && estratificacaoReal.observacoes.length)
+        ? `<div style="padding:0 1.25rem 1rem;color:#64748b;font-size:.84rem;">Observações: ${estratificacaoReal.observacoes.join(' | ')}</div>`
         : ''}
     `;
-    show(benchmarkSection);
+    show(estratificacaoRealSection);
   } else {
-    benchmarkContent.innerHTML = '';
-    hide(benchmarkSection);
+    estratificacaoRealContent.innerHTML = '';
+    hide(estratificacaoRealSection);
   }
 }
 

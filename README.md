@@ -67,7 +67,52 @@ mvp/
 - **Amostragem estratificada proporcional** por zona eleitoral
 - **Método de Hamilton** (maior resto) para distribuição exata das quotas
 - **Quotas por gênero** proporcionais ao eleitorado de cada zona
-- **Benchmark estratificado de entrega** (gênero, instrução, salário, faixa etária, urbano/rural)
+- **Estratificação real de entrega** (gênero, instrução e faixa etária), baseada em dados oficiais do município
+- **Inteligência analítica + análise de mercado** para apoiar decisões operacionais de campo
+
+### Como calculamos a **amostra recomendada**
+
+O sistema calcula a amostra em camadas, combinando base estatística e regras operacionais de campo:
+
+1. **Amostra mínima teórica (Cochran para população finita)**
+
+    \[
+    n = \frac{Z^2 \cdot p \cdot q \cdot N}{e^2 \cdot (N - 1) + Z^2 \cdot p \cdot q}
+    \]
+
+    Onde:
+
+    - `N`: total de eleitores do município (TSE)
+    - `Z`: valor crítico conforme confiança (90% = 1.645, 95% = 1.96, 99% = 2.576)
+    - `e`: margem de erro (ex.: 0.05 = ±5%)
+    - `p = 0.5` e `q = 0.5` (cenário conservador de máxima variância)
+
+2. **Ajuste de desenho amostral (DEFF)**
+
+    - `n_ajustado = ceil(n_cochran × 1.3)`
+    - O DEFF compensa perdas de eficiência típicas de pesquisa de campo (estratos/cluster/operação real).
+
+3. **Pisos mínimos operacionais**
+
+    - Piso municipal: **400 entrevistas**
+    - Piso por zona: **12 entrevistas × número de zonas eleitorais**
+    - Base final antes do arredondamento:
+
+      `n_base = max(n_ajustado, piso_municipal, piso_por_zona)`
+
+4. **Amostra recomendada final**
+
+    - Arredondamento para múltiplos de 10:
+
+      `amostra_recomendada = ceil(n_base / 10) × 10`
+
+5. **Alvo sugerido de campo (abordagens)**
+
+    - Considera taxa de resposta padrão de 80%:
+
+      `alvo_campo = ceil((amostra_recomendada / 0.80) / 10) × 10`
+
+> Resumo prático: a aplicação sempre parte de uma base estatística robusta (Cochran) e, em seguida, aplica regras de mercado para garantir viabilidade operacional e cobertura mínima de todas as zonas.
 
 ## 🗂️ Fontes de Dados
 
@@ -83,7 +128,7 @@ mvp/
 - **Excel (.xlsx)** — Planilha formatada com 2 abas (Plano + IBGE)
 - **Markdown** — Relatório em texto estruturado
 
-## 🧭 Benchmark de Entrega
+## 🧭 Estratificação Real de Entrega
 
 - A aplicação preserva o plano por zona eleitoral e acrescenta os quadros no padrão de entrega de institutos de pesquisa.
 - **Gênero**: calculado com base no eleitorado real do município (TSE).
@@ -111,6 +156,6 @@ mvp/
 
 ```bash
 git add .
-git commit -m "feat: benchmark estratificado e metodologia institucional"
+git commit -m "feat: estratificação real e metodologia institucional"
 git push -u origin main
 ```

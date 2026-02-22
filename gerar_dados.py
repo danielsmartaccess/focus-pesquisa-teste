@@ -11,6 +11,13 @@ Fontes:
 - TSE Dados Abertos (CKAN): dataset "Eleitorado Atual"
 """
 
+# Leitura rápida do fluxo deste arquivo:
+# 1) Busca municípios oficiais no IBGE e a população mais recente disponível.
+# 2) Consulta catálogo do TSE e identifica arquivos por UF.
+# 3) Processa CSVs massivos em chunks (memória controlada).
+# 4) Agrega por município/zona/gênero e cria base de perfil municipal.
+# 5) Salva CSVs prontos para o motor de amostragem.
+
 from __future__ import annotations
 
 import argparse
@@ -102,6 +109,7 @@ def buscar_populacao_ibge() -> tuple[dict[int, int], int]:
     anos_detectados: set[int] = set()
 
     for item in series:
+        # Cada item representa uma localidade com série temporal de valores.
         localidade = item.get("localidade") or {}
         local_id = localidade.get("id")
         if not local_id:
@@ -115,6 +123,7 @@ def buscar_populacao_ibge() -> tuple[dict[int, int], int]:
         if not anos_validos:
             continue
 
+        # Escolhe sempre o ano mais recente disponível para aquela localidade.
         ano_ref = max(anos_validos)
         valor = serie.get(str(ano_ref), "0")
         try:
@@ -256,6 +265,8 @@ def processar_arquivo_tse_uf(
             ]
 
             with zf.open(nome_csv) as f:
+                # Leitura em chunks para suportar arquivos grandes do TSE sem
+                # estourar memória em máquinas locais.
                 chunks = pd.read_csv(
                     f,
                     sep=";",
@@ -289,7 +300,8 @@ def processar_arquivo_tse_uf(
                             chunk["DT_GERACAO"].dropna().astype(str).str.strip().tolist()
                         )
 
-                    # Canoniza nome para alinhar com IBGE
+                    # Canoniza nome para alinhar com IBGE e evitar divergências
+                    # de acentuação/caixa entre fontes.
                     chunk["MUN_CANON"] = chunk["NM_MUNICIPIO"].apply(
                         lambda n: canon_por_uf_norm.get((uf, normalizar_nome(n)), n.title())
                     )
@@ -325,7 +337,8 @@ def processar_arquivo_tse_uf(
                             kz = (row["SG_UF"], row["MUN_CANON"], int(row["NR_ZONA"]))
                             secoes_por_zona[kz].add(int(row["NR_SECAO"]))
 
-                    # Perfil municipal real para estratificação
+                    # Perfil municipal real para estratificação posterior
+                    # (gênero, instrução e faixa etária do município).
                     pcols = ["SG_UF", "MUN_CANON", "DS_GENERO", "DS_GRAU_INSTRUCAO", "DS_FAIXA_ETARIA", "QT_ELEITORES"]
                     p = chunk[pcols].copy()
                     p["DS_GENERO"] = p["DS_GENERO"].fillna("N/D").astype(str).str.strip()
@@ -471,6 +484,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def main():
+    # Orquestrador principal: executa pipeline ponta-a-ponta e persiste bases
+    # consolidadas consumidas pelos endpoints da API.
     args = parse_args()
     ufs_filtro = {
         uf.strip().upper()

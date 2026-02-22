@@ -3,6 +3,13 @@ Motor de Amostragem - Instituto Amostral MVP
 Gera planos amostrais com base em dados do TSE e IBGE.
 """
 
+# Guia didático deste módulo:
+# 1) Lê bases consolidadas (TSE/IBGE) já tratadas por `gerar_dados.py`.
+# 2) Calcula amostra mínima teórica (Cochran para população finita).
+# 3) Aplica regras operacionais de mercado (DEFF, piso municipal, piso por zona).
+# 4) Distribui quotas por zona com soma exata via método de Hamilton.
+# 5) Gera saídas finais (Excel/PDF/Markdown) para uso técnico e executivo.
+
 import os
 import math
 import json
@@ -135,9 +142,12 @@ def calcular_amostra_recomendada(
           - parametros: parâmetros usados no cálculo
     """
     # ── 1. Mínimo pela fórmula de Cochran ─────────────────────────────────
+    # Este é o valor estatístico "puro" (sem ajustes de campo).
     n_cochran = calcular_amostra_minima(N_eleitores, confianca, margem_erro)
 
     # ── 2. Ajuste DEFF (padrão mercado) ───────────────────────────────────
+    # DEFF corrige a perda de eficiência quando a amostra não é AAS perfeita
+    # (ex.: estratos, clusters, restrições operacionais de coleta).
     deff_aplicado = DEFF_PADRAO_MERCADO
     n_ajustado_deff = math.ceil(n_cochran * deff_aplicado)
 
@@ -146,12 +156,16 @@ def calcular_amostra_recomendada(
     minimo_por_zona = n_zonas * MIN_ENTREVISTAS_POR_ZONA
 
     # ── 4. Piso municipal de mercado ─────────────────────────────────────
+    # Garante tamanho mínimo com estabilidade de leitura para tracking local.
     n_base = max(n_ajustado_deff, minimo_por_zona, MIN_ENTREVISTAS_MUNICIPAL)
 
     # ── 5. Valor recomendado final (entrevistas completas) ───────────────
+    # Arredondamento facilita operação de campo (equipes/rotas/lotes).
     recomendado = math.ceil(n_base / ARREDONDAMENTO_AMOSTRA) * ARREDONDAMENTO_AMOSTRA
 
     # Alvo operacional de campo (contatos/abordagens), considerando não resposta
+    # Ex.: se taxa de resposta esperada é 80%, precisa-se abordar mais pessoas
+    # para obter o total de entrevistas completas planejado.
     alvo_campo_sugerido = math.ceil(recomendado / TAXA_RESPOSTA_PADRAO)
     alvo_campo_sugerido = math.ceil(alvo_campo_sugerido / ARREDONDAMENTO_AMOSTRA) * ARREDONDAMENTO_AMOSTRA
 
@@ -236,13 +250,14 @@ def calcular_quotas(df_zonas: pd.DataFrame, amostra: int) -> pd.DataFrame:
     """
     total = df_zonas["ELEITORES_TOTAL"].sum()
     
-    # Quota proporcional
+    # Quota proporcional (valor real não inteiro antes do arredondamento)
     df_zonas = df_zonas.copy()
     df_zonas["PROPORCAO"] = df_zonas["ELEITORES_TOTAL"] / total
     df_zonas["QUOTA_REAL"] = df_zonas["PROPORCAO"] * amostra
     df_zonas["QUOTA"] = df_zonas["QUOTA_REAL"].apply(math.floor)
     
-    # Método Hamilton: distribui os restos
+    # Método Hamilton: distribui os maiores restos para garantir soma exata
+    # da amostra sem distorcer proporcionalidade global.
     resto = amostra - df_zonas["QUOTA"].sum()
     df_zonas["RESTO"] = df_zonas["QUOTA_REAL"] - df_zonas["QUOTA"]
     indices_maiores_restos = df_zonas["RESTO"].nlargest(int(resto)).index
@@ -364,7 +379,7 @@ def _gerar_tabela_dimensao(titulo: str, categorias_pct: list[dict], amostra: int
     }
 
 
-def calcular_benchmark_estratos(df_mun: pd.DataFrame, amostra_final: int, uf: str, municipio: str) -> dict:
+def calcular_estratificacao_real(df_mun: pd.DataFrame, amostra_final: int, uf: str, municipio: str) -> dict:
     """
     Calcula estratificação municipal real para o plano de campo, sem perfis
     sintéticos. Usa apenas dados oficiais observados para o município.
@@ -438,14 +453,14 @@ def calcular_benchmark_estratos(df_mun: pd.DataFrame, amostra_final: int, uf: st
         "metodologia": (
             "Estratificação municipal real: quotas calculadas por método de Hamilton com soma exata da amostra final. "
             "As proporções são derivadas exclusivamente de dados oficiais observados do município (TSE), "
-            "sem uso de percentuais fixos de benchmark para dimensionamento do plano."
+            "sem uso de percentuais fixos sintéticos para dimensionamento do plano."
         ),
         "observacoes": observacoes,
         "tabelas": tabelas,
     }
 
 
-def gerar_texto_metodologia_institucional(meta: dict, benchmark: dict | None = None) -> str:
+def gerar_texto_metodologia_institucional(meta: dict, estratificacao_real: dict | None = None) -> str:
     """Retorna texto institucional padronizado para proposta/relatório técnico."""
     confianca = meta.get("confianca_pct", 95)
     margem = meta.get("margem_erro_pct", 5)
@@ -454,13 +469,14 @@ def gerar_texto_metodologia_institucional(meta: dict, benchmark: dict | None = N
     n_zonas = meta.get("n_zonas", 0)
     margem_real = meta.get("margem_real_pct", margem)
 
-    bloco_benchmark = (
-        "Complementarmente, o plano incorpora benchmark estratificado de execução de campo "
+    bloco_estratificacao = (
+        "Complementarmente, o plano incorpora estrutura estratificada real de execução de campo "
         "(gênero, grau de instrução e faixa etária), com alocação por maior resto (Hamilton) para "
         "preservar a soma exata das quotas. "
         "Gênero é ancorado no eleitorado municipal observado no TSE; instrução e faixa etária são "
-        "ancoradas no perfil detalhado por seção do próprio município, sem uso de percentuais sintéticos."
-        if benchmark and benchmark.get("tabelas")
+        "ancoradas no perfil detalhado por seção do próprio município, sem uso de percentuais sintéticos, "
+        "com apoio de inteligência analítica e análise de mercado para tomada de decisão operacional."
+        if estratificacao_real and estratificacao_real.get("tabelas")
         else ""
     )
 
@@ -473,7 +489,7 @@ def gerar_texto_metodologia_institucional(meta: dict, benchmark: dict | None = N
         f"com margem efetiva estimada em ±{margem_real}%. "
         "A seleção é estratificada por zona eleitoral, com distribuição proporcional e ajuste por maior resto, "
         f"garantindo cobertura integral dos {n_zonas} estratos e aderência ao total amostral. "
-        f"{bloco_benchmark} "
+        f"{bloco_estratificacao} "
         "As fontes utilizadas são oficiais e públicas, com referência temporal explicitada em metadados, "
         "permitindo auditoria técnica e reprodutibilidade da entrega."
     ).replace(",", ".")
@@ -564,7 +580,7 @@ def gerar_plano(
         amostra_final = max(int(amostra), amostra_minima)
 
     df_quotas = calcular_quotas(df_mun, amostra_final)
-    benchmark = calcular_benchmark_estratos(df_mun, amostra_final, uf_upper, municipio_strip)
+    estratificacao_real = calcular_estratificacao_real(df_mun, amostra_final, uf_upper, municipio_strip)
     metodologia_institucional = gerar_texto_metodologia_institucional(
         {
             "confianca_pct": int(confianca * 100),
@@ -574,7 +590,7 @@ def gerar_plano(
             "n_zonas": len(df_quotas),
             "margem_real_pct": calc["margem_real_pct"],
         },
-        benchmark=benchmark,
+        estratificacao_real=estratificacao_real,
     )
 
     # ── Metadados do plano ─────────────────────────────────────────────────
@@ -594,17 +610,18 @@ def gerar_plano(
         "n_zonas": len(df_quotas),
         "calculo_detalhado": calc,
         "ibge": ibge_data,
-        "benchmark": benchmark,
+        "estratificacao_real": estratificacao_real,
         "metodologia_institucional": metodologia_institucional,
     }
     
     # ── Gera arquivos ──────────────────────────────────────────────────────
+    # O backend sempre entrega Excel; PDF/Markdown são opcionais via parâmetro.
     slug = f"{uf_upper}_{municipio_strip.replace(' ', '_')}"
     resultado = {"meta": meta}
     
     # Sempre gera Excel
     caminho_excel = os.path.join(OUTPUTS_DIR, f"{slug}_plano.xlsx")
-    gerar_excel(df_quotas, meta, caminho_excel, benchmark=benchmark)
+    gerar_excel(df_quotas, meta, caminho_excel, estratificacao_real=estratificacao_real)
     resultado["excel"] = caminho_excel
 
     # Detalhamento por zona para o frontend
@@ -620,16 +637,16 @@ def gerar_plano(
             "QUOTA_MASCULINO",
         ]
     ].to_dict("records")
-    resultado["benchmark"] = benchmark
+    resultado["estratificacao_real"] = estratificacao_real
     
     if formato == "pdf":
         caminho_pdf = os.path.join(OUTPUTS_DIR, f"{slug}_plano.pdf")
-        gerar_pdf(df_quotas, meta, caminho_pdf, benchmark=benchmark)
+        gerar_pdf(df_quotas, meta, caminho_pdf, estratificacao_real=estratificacao_real)
         resultado["pdf"] = caminho_pdf
     
     if formato == "markdown" or formato == "md":
         caminho_md = os.path.join(OUTPUTS_DIR, f"{slug}_plano.md")
-        gerar_markdown(df_quotas, meta, caminho_md, benchmark=benchmark)
+        gerar_markdown(df_quotas, meta, caminho_md, estratificacao_real=estratificacao_real)
         resultado["markdown"] = caminho_md
     
     return resultado
@@ -639,7 +656,7 @@ def gerar_plano(
 # GERAÇÃO DE EXCEL
 # ─────────────────────────────────────────────────────────────────────────────
 
-def gerar_excel(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | None = None):
+def gerar_excel(df: pd.DataFrame, meta: dict, caminho: str, estratificacao_real: dict | None = None):
     """Gera planilha Excel formatada com o plano amostral."""
     from openpyxl import Workbook
     from openpyxl.styles import (
@@ -820,12 +837,12 @@ def gerar_excel(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | No
     ws2.column_dimensions["C"].width = 20
     ws2.column_dimensions["D"].width = 15
     
-    # ── Aba 3: Benchmark (entrega estratificada) ──────────────────────────
-    if benchmark:
-        ws3 = wb.create_sheet("Benchmark")
+    # ── Aba 3: Estratificação Real (entrega estratificada) ────────────────
+    if estratificacao_real:
+        ws3 = wb.create_sheet("Estratificação Real")
         ws3.merge_cells("A1:C1")
         t = ws3["A1"]
-        t.value = f"BENCHMARK ESTRATIFICADO — {meta['municipio'].upper()} / {meta['uf']}"
+        t.value = f"ESTRATIFICAÇÃO REAL — {meta['municipio'].upper()} / {meta['uf']}"
         t.font = Font(bold=True, size=12, color="FFFFFF", name="Calibri")
         t.fill = PatternFill("solid", fgColor=cor_header)
         t.alignment = Alignment(horizontal="center", vertical="center")
@@ -833,14 +850,14 @@ def gerar_excel(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | No
 
         ws3.merge_cells("A2:C2")
         s = ws3["A2"]
-        s.value = benchmark.get("metodologia", "")
+        s.value = estratificacao_real.get("metodologia", "")
         s.font = Font(size=9, color="333333", name="Calibri")
         s.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
         ws3.row_dimensions[2].height = 32
 
         linha = 4
         cab = ["Categoria", "V. Absoluto", "%"]
-        for tabela in benchmark.get("tabelas", []):
+        for tabela in estratificacao_real.get("tabelas", []):
             ws3.merge_cells(f"A{linha}:C{linha}")
             ch = ws3[f"A{linha}"]
             ch.value = f"{tabela.get('titulo', '')}  |  Fonte: {tabela.get('fonte', '')}"
@@ -877,10 +894,10 @@ def gerar_excel(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | No
             ws3.row_dimensions[linha].height = 18
             linha += 2
 
-        if benchmark.get("observacoes"):
+        if estratificacao_real.get("observacoes"):
             ws3.merge_cells(f"A{linha}:C{linha}")
             o = ws3[f"A{linha}"]
-            o.value = "Observações: " + " | ".join(benchmark.get("observacoes", []))
+            o.value = "Observações: " + " | ".join(estratificacao_real.get("observacoes", []))
             o.font = Font(size=9, color="666666", name="Calibri")
             o.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             ws3.row_dimensions[linha].height = 34
@@ -896,7 +913,7 @@ def gerar_excel(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | No
 # GERAÇÃO DE PDF
 # ─────────────────────────────────────────────────────────────────────────────
 
-def gerar_pdf(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | None = None):
+def gerar_pdf(df: pd.DataFrame, meta: dict, caminho: str, estratificacao_real: dict | None = None):
     """Gera relatório PDF profissional com o plano amostral."""
     
     doc = SimpleDocTemplate(
@@ -1128,15 +1145,15 @@ def gerar_pdf(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | None
     ]))
     elementos.append(tabela_zonas)
 
-    # ── Benchmark estratificado ────────────────────────────────────────────
-    if benchmark and benchmark.get("tabelas"):
+    # ── Estratificação real ────────────────────────────────────────────────
+    if estratificacao_real and estratificacao_real.get("tabelas"):
         elementos.append(PageBreak())
-        elementos.append(Paragraph("BENCHMARK ESTRATIFICADO DE ENTREGA", estilo_secao))
+        elementos.append(Paragraph("ESTRATIFICAÇÃO REAL DE ENTREGA", estilo_secao))
         elementos.append(Spacer(1, 0.2*cm))
-        elementos.append(Paragraph(benchmark.get("metodologia", ""), estilo_normal))
+        elementos.append(Paragraph(estratificacao_real.get("metodologia", ""), estilo_normal))
         elementos.append(Spacer(1, 0.3*cm))
 
-        for tabela in benchmark.get("tabelas", []):
+        for tabela in estratificacao_real.get("tabelas", []):
             elementos.append(Paragraph(f"<b>{tabela.get('titulo','')}</b> — {tabela.get('fonte','')}", estilo_normal))
             dados_b = [["Categoria", "V.Abs", "%"]]
             for item in tabela.get("linhas", []):
@@ -1169,8 +1186,8 @@ def gerar_pdf(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | None
             elementos.append(tb)
             elementos.append(Spacer(1, 0.25*cm))
 
-        if benchmark.get("observacoes"):
-            elementos.append(Paragraph("Observações: " + " | ".join(benchmark.get("observacoes", [])), estilo_rodape))
+        if estratificacao_real.get("observacoes"):
+            elementos.append(Paragraph("Observações: " + " | ".join(estratificacao_real.get("observacoes", [])), estilo_rodape))
             elementos.append(Spacer(1, 0.2*cm))
     
     # ── Metodologia ────────────────────────────────────────────────────────
@@ -1178,7 +1195,7 @@ def gerar_pdf(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | None
     elementos.append(Paragraph("NOTA METODOLÓGICA", estilo_secao))
     elementos.append(Spacer(1, 0.3*cm))
     
-    nota = meta.get("metodologia_institucional") or gerar_texto_metodologia_institucional(meta, benchmark=benchmark)
+    nota = meta.get("metodologia_institucional") or gerar_texto_metodologia_institucional(meta, estratificacao_real=estratificacao_real)
     elementos.append(Paragraph(nota, estilo_normal))
     
     # ── Rodapé ─────────────────────────────────────────────────────────────
@@ -1197,7 +1214,7 @@ def gerar_pdf(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | None
 # GERAÇÃO DE MARKDOWN
 # ─────────────────────────────────────────────────────────────────────────────
 
-def gerar_markdown(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict | None = None):
+def gerar_markdown(df: pd.DataFrame, meta: dict, caminho: str, estratificacao_real: dict | None = None):
     """Gera relatório em Markdown com o plano amostral."""
     
     linhas = []
@@ -1258,11 +1275,11 @@ def gerar_markdown(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict |
     )
     
     linhas.append("\n---\n")
-    if benchmark and benchmark.get("tabelas"):
-        linhas.append("## Benchmark Estratificado\n")
-        linhas.append(benchmark.get("metodologia", ""))
+    if estratificacao_real and estratificacao_real.get("tabelas"):
+        linhas.append("## Estratificação Real\n")
+        linhas.append(estratificacao_real.get("metodologia", ""))
         linhas.append("")
-        for tabela in benchmark.get("tabelas", []):
+        for tabela in estratificacao_real.get("tabelas", []):
             linhas.append(f"### {tabela.get('titulo','')}\n")
             linhas.append(f"Fonte: {tabela.get('fonte','')}\n")
             linhas.append("| Categoria | V. Absoluto | % |")
@@ -1277,14 +1294,14 @@ def gerar_markdown(df: pd.DataFrame, meta: dict, caminho: str, benchmark: dict |
             )
             linhas.append("")
 
-        if benchmark.get("observacoes"):
-            linhas.append("Observações: " + " | ".join(benchmark.get("observacoes", [])))
+        if estratificacao_real.get("observacoes"):
+            linhas.append("Observações: " + " | ".join(estratificacao_real.get("observacoes", [])))
             linhas.append("")
 
         linhas.append("\n---\n")
 
     linhas.append("## Nota Metodológica\n")
-    linhas.append(meta.get("metodologia_institucional") or gerar_texto_metodologia_institucional(meta, benchmark=benchmark))
+    linhas.append(meta.get("metodologia_institucional") or gerar_texto_metodologia_institucional(meta, estratificacao_real=estratificacao_real))
     
     with open(caminho, "w", encoding="utf-8") as f:
         f.write("\n".join(linhas))

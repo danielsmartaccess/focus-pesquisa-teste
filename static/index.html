@@ -16,6 +16,14 @@
 
 <body>
 
+        <!--
+            Guia didático da página:
+            - Header/Hero: contexto institucional e credibilidade da solução.
+            - Formulário: define UF, município, amostra e parâmetros estatísticos.
+            - Resultado: mostra KPIs, quotas por zona e estratificação real dos estratos.
+            - Footer: resumo metodológico e versão do MVP.
+        -->
+
     <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
     <header class="header">
         <div class="header-inner">
@@ -86,7 +94,7 @@
     <main class="main">
         <div class="container">
 
-            <!-- Formulário -->
+            <!-- Formulário principal: entrada de parâmetros para gerar o plano -->
             <div class="card form-card" id="form-section">
                 <div class="card-header">
                     <div class="card-icon">
@@ -104,7 +112,7 @@
 
                 <form id="plano-form" class="form">
 
-                    <!-- Linha 1: UF + Município -->
+                    <!-- Linha 1: UF + Município (gatilho do cálculo automático) -->
                     <div class="form-row">
                         <div class="form-group">
                             <label for="uf-select" class="form-label">
@@ -198,7 +206,7 @@
                         </div>
                     </div>
 
-                    <!-- Linha 2: Amostra + Formato -->
+                    <!-- Linha 2: Amostra final + formato de saída -->
                     <div class="form-row">
                         <div class="form-group">
                             <label for="amostra-input" class="form-label">
@@ -263,7 +271,7 @@
                         </div>
                     </div>
 
-                    <!-- Parâmetros Avançados -->
+                    <!-- Parâmetros avançados: afetam o cálculo estatístico -->
                     <div class="advanced-section">
                         <button type="button" class="advanced-toggle" id="advanced-toggle">
                             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -431,8 +439,8 @@
                     </div>
                 </div>
 
-                <!-- Benchmark Estratificado -->
-                <div class="card table-card hidden" id="benchmark-section">
+                <!-- Estratificação Real -->
+                <div class="card table-card hidden" id="estratificacao-real-section">
                     <div class="card-header">
                         <div class="card-icon card-icon--blue">
                             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -441,11 +449,11 @@
                             </svg>
                         </div>
                         <div>
-                            <h2 class="card-title">Benchmark de Entrega Estratificada</h2>
-                            <p class="card-desc" id="benchmark-desc">Quadros no padrão profissional de campo</p>
+                            <h2 class="card-title">Estratificação Real de Entrega</h2>
+                            <p class="card-desc" id="estratificacao-real-desc">Quadros baseados em dados reais de campo</p>
                         </div>
                     </div>
-                    <div id="benchmark-content"></div>
+                    <div id="estratificacao-real-content"></div>
                 </div>
 
                 <!-- Botão Nova Consulta -->
