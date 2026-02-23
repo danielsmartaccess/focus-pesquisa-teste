@@ -19,6 +19,9 @@ let ultimoCalculo = null;
 // ─── Helpers show/hide ───────────────────────────────────────────────────────
 const show = el => el && el.classList.remove('hidden');
 const hide = el => el && el.classList.add('hidden');
+const setHTML = (el, html) => { if (el) el.innerHTML = html; };
+const setText = (el, text) => { if (el) el.textContent = text; };
+const setDisabled = (el, value) => { if (el) el.disabled = value; };
 
 // ─── Elementos DOM ──────────────────────────────────────────────────────────
 const ufSelect = document.getElementById('uf-select');
@@ -70,7 +73,7 @@ function setupEventListeners() {
     const uf = ufSelect.value;
     if (uf) carregarMunicipios(uf);
     else {
-      municipioSelect.innerHTML = '<option value="">Selecione o estado primeiro</option>';
+      setHTML(municipioSelect, '<option value="">Selecione o estado primeiro</option>');
       municipioSelect.disabled = true;
       resetCalcPanel();
     }
@@ -120,7 +123,7 @@ async function carregarUFs() {
   try {
     const res = await fetch(`${API}/ufs`);
     const data = await res.json();
-    ufSelect.innerHTML = '<option value="">Selecione o estado...</option>';
+    setHTML(ufSelect, '<option value="">Selecione o estado...</option>');
     data.ufs.forEach(uf => {
       const opt = document.createElement('option');
       opt.value = uf;
@@ -133,24 +136,24 @@ async function carregarUFs() {
       const r2 = await fetch(`${API}/municipios`);
       const d2 = await r2.json();
       const el = document.getElementById('stat-municipios');
-      if (el) el.textContent = d2.municipios.length.toLocaleString('pt-BR');
+      setText(el, d2.municipios.length.toLocaleString('pt-BR'));
     } catch (_) { }
 
   } catch (err) {
-    ufSelect.innerHTML = '<option value="">Erro ao carregar UFs</option>';
+    setHTML(ufSelect, '<option value="">Erro ao carregar UFs</option>');
   }
 }
 
 // ─── Carregar Municípios ─────────────────────────────────────────────────────
 async function carregarMunicipios(uf) {
   municipioSelect.disabled = true;
-  municipioSelect.innerHTML = '<option value="">Carregando...</option>';
+  setHTML(municipioSelect, '<option value="">Carregando...</option>');
   resetCalcPanel();
 
   try {
     const res = await fetch(`${API}/municipios?uf=${uf}`);
     const data = await res.json();
-    municipioSelect.innerHTML = '<option value="">Selecione o município...</option>';
+    setHTML(municipioSelect, '<option value="">Selecione o município...</option>');
     data.municipios.forEach(m => {
       const opt = document.createElement('option');
       opt.value = m.MUNICIPIO;
@@ -159,7 +162,7 @@ async function carregarMunicipios(uf) {
     });
     municipioSelect.disabled = false;
   } catch (err) {
-    municipioSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+    setHTML(municipioSelect, '<option value="">Erro ao carregar</option>');
   }
 }
 
@@ -181,12 +184,12 @@ async function calcularAmostra() {
   // Mostra painel com loading antes da chamada de rede para feedback imediato.
   show(calcPanel);
   show(calcLoading);
-  if (calcKpis) calcKpis.innerHTML = '';
+  setHTML(calcKpis, '');
   hide(cenariosSection);
   hide(justBox);
-  if (calcPanelSub) calcPanelSub.textContent = `Calculando para ${municipio} / ${uf}...`;
-  if (btnGerar) btnGerar.disabled = true;
-  if (btnGerarText) btnGerarText.textContent = 'Calculando amostra...';
+  setText(calcPanelSub, `Calculando para ${municipio} / ${uf}...`);
+  setDisabled(btnGerar, true);
+  setText(btnGerarText, 'Calculando amostra...');
 
   try {
     const url = `${API}/calcular-amostra?uf=${encodeURIComponent(uf)}&municipio=${encodeURIComponent(municipio)}&confianca=${confianca}&margem_erro=${margemErro}`;
@@ -196,7 +199,7 @@ async function calcularAmostra() {
     ultimoCalculo = calc;
     renderCalcPanel(calc, municipio, uf);
   } catch (err) {
-    if (calcPanelSub) calcPanelSub.textContent = 'Erro ao calcular — verifique o servidor';
+    setText(calcPanelSub, 'Erro ao calcular — verifique o servidor');
     hide(calcLoading);
   }
 }
@@ -206,7 +209,7 @@ function renderCalcPanel(calc, municipio, uf) {
   // Converte o payload técnico da API em elementos visuais acionáveis
   // (KPIs, cenários clicáveis e justificativa expandível).
   hide(calcLoading);
-  if (calcPanelSub) calcPanelSub.textContent = `${municipio} / ${uf} — baseado em dados TSE + IBGE`;
+  setText(calcPanelSub, `${municipio} / ${uf} — baseado em dados TSE + IBGE`);
 
   const p = calc.parametros;
   const fmt = n => n.toLocaleString('pt-BR');
@@ -215,7 +218,7 @@ function renderCalcPanel(calc, municipio, uf) {
     : 'N/D';
 
   // KPIs rápidos
-  if (calcKpis) calcKpis.innerHTML = `
+  setHTML(calcKpis, `
     <div class="calc-kpi calc-kpi--highlight">
       <span class="calc-kpi-val">${fmt(calc.recomendado)}</span>
       <span class="calc-kpi-label">Amostra Recomendada</span>
@@ -240,7 +243,7 @@ function renderCalcPanel(calc, municipio, uf) {
       <span class="calc-kpi-val">${deffTexto}</span>
       <span class="calc-kpi-label">DEFF Aplicado</span>
     </div>
-  `;
+  `);
 
   // Cenários
   if (!cenariosGrid) return;
@@ -267,7 +270,7 @@ function renderCalcPanel(calc, municipio, uf) {
   show(cenariosSection);
 
   // Justificativa
-  if (justText) justText.textContent = calc.justificativa;
+  setText(justText, calc.justificativa);
   show(justBox);
   hide(justText);
   if (justToggle) {
@@ -281,8 +284,8 @@ function renderCalcPanel(calc, municipio, uf) {
   atualizarHintAmostra(calc.recomendado, calc.minimo_cochran, 'automático');
 
   // Habilita botão
-  if (btnGerar) btnGerar.disabled = false;
-  if (btnGerarText) btnGerarText.textContent = `Gerar Plano Amostral — ${fmt(calc.recomendado)} entrevistas`;
+  setDisabled(btnGerar, false);
+  setText(btnGerarText, `Gerar Plano Amostral — ${fmt(calc.recomendado)} entrevistas`);
 
   // Listener para edição manual
   if (!amostraInput) return;
@@ -290,7 +293,7 @@ function renderCalcPanel(calc, municipio, uf) {
     const val = parseInt(amostraInput.value);
     if (val && val >= 100) {
       atualizarHintAmostra(val, calc.minimo_cochran, 'manual');
-      if (btnGerarText) btnGerarText.textContent = `Gerar Plano Amostral — ${val.toLocaleString('pt-BR')} entrevistas`;
+      setText(btnGerarText, `Gerar Plano Amostral — ${val.toLocaleString('pt-BR')} entrevistas`);
       document.querySelectorAll('.cenario-btn').forEach(b => b.classList.remove('cenario-selected'));
       hide(amostraBadge);
     }
@@ -329,11 +332,11 @@ function resetCalcPanel() {
   }
   hide(amostraBadge);
   if (amostraHint) {
-    amostraHint.textContent = 'Selecione o município para calcular automaticamente';
+    setText(amostraHint, 'Selecione o município para calcular automaticamente');
     amostraHint.className = 'form-hint';
   }
-  if (btnGerar) btnGerar.disabled = true;
-  if (btnGerarText) btnGerarText.textContent = 'Selecione o município para continuar';
+  setDisabled(btnGerar, true);
+  setText(btnGerarText, 'Selecione o município para continuar');
   if (amostraInput) amostraInput.oninput = null;
 }
 
@@ -372,7 +375,7 @@ async function gerarPlano() {
 
   } catch (err) {
     hide(loadingEl);
-    if (errorMsg) errorMsg.textContent = err.message;
+    setText(errorMsg, err.message);
     show(errorCard);
   }
 }
@@ -421,20 +424,20 @@ function renderResultado(data) {
   ];
 
   const kpiGrid = document.getElementById('kpi-grid');
-  if (kpiGrid) kpiGrid.innerHTML = kpis.map(k => `
+  setHTML(kpiGrid, kpis.map(k => `
     <div class="kpi-card${k.highlight ? ' kpi-card--highlight' : ''}">
       <span class="kpi-icon">${k.icon}</span>
       <span class="kpi-val">${k.val}</span>
       <div class="kpi-label">${k.label}</div>
       <div class="kpi-sub">${k.sub}</div>
     </div>
-  `).join('');
+  `).join(''));
 
   // Downloads
   const arqs = data.arquivos || {};
   const btnsDl = document.getElementById('download-buttons');
   if (!btnsDl) return;
-  btnsDl.innerHTML = '';
+  setHTML(btnsDl, '');
 
   const configs = {
     pdf: { icon: '📄', label: 'Baixar PDF', cls: 'dl-btn--pdf' },
@@ -455,15 +458,13 @@ function renderResultado(data) {
   // Tabela de zonas
   const zonas = data.zonas || [];
   const tableDesc = document.getElementById('table-desc');
-  if (tableDesc) {
-    tableDesc.textContent = `${zonas.length} zonas · método Hamilton · quotas por gênero`;
-  }
+  setText(tableDesc, `${zonas.length} zonas · método Hamilton · quotas por gênero`);
 
   const tbody = document.getElementById('zonas-tbody');
   const tfoot = document.getElementById('zonas-tfoot');
   if (!tbody || !tfoot) return;
-  tbody.innerHTML = '';
-  tfoot.innerHTML = '';
+  setHTML(tbody, '');
+  setHTML(tfoot, '');
 
   let totEl = 0, totFem = 0, totMasc = 0, totSec = 0, totQ = 0, totQF = 0, totQM = 0;
 
@@ -492,7 +493,7 @@ function renderResultado(data) {
     totQM += z.QUOTA_MASCULINO;
   });
 
-  tfoot.innerHTML = `
+  setHTML(tfoot, `
     <tr class="row-total">
       <td><strong>TOTAL</strong></td>
       <td><strong>${fmt(totEl)}</strong></td>
@@ -504,7 +505,7 @@ function renderResultado(data) {
       <td><strong>${totQM}</strong></td>
       <td><strong>100%</strong></td>
     </tr>
-  `;
+  `);
 
   // Estratificação real
   const estratificacaoReal = data.estratificacao_real || {};
@@ -515,11 +516,11 @@ function renderResultado(data) {
   if (estratificacaoReal.tabelas && estratificacaoReal.tabelas.length) {
     const metodologia = estratificacaoReal.metodologia || '';
     if (estratificacaoRealDesc) {
-      estratificacaoRealDesc.textContent = 'Estratificação municipal real com base em dados oficiais';
+      setText(estratificacaoRealDesc, 'Estratificação municipal real com base em dados oficiais');
     }
 
     if (estratificacaoRealContent) {
-      estratificacaoRealContent.innerHTML = `
+      setHTML(estratificacaoRealContent, `
       <div style="padding: 0 1.25rem 1rem; color:#475569; font-size:.92rem; line-height:1.45;">${metodologia}</div>
       ${estratificacaoReal.tabelas.map(tb => {
         const linhas = (tb.linhas || []).map(l => `
@@ -558,11 +559,11 @@ function renderResultado(data) {
       ${(estratificacaoReal.observacoes && estratificacaoReal.observacoes.length)
         ? `<div style="padding:0 1.25rem 1rem;color:#64748b;font-size:.84rem;">Observações: ${estratificacaoReal.observacoes.join(' | ')}</div>`
         : ''}
-    `;
+    `);
     }
     show(estratificacaoRealSection);
   } else {
-    if (estratificacaoRealContent) estratificacaoRealContent.innerHTML = '';
+    setHTML(estratificacaoRealContent, '');
     hide(estratificacaoRealSection);
   }
 }
