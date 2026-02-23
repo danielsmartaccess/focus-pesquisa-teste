@@ -49,11 +49,21 @@ const errorMsg = document.getElementById('error-msg');
 
 // ─── Inicialização ──────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('plano-form');
+  if (!form || !ufSelect || !municipioSelect) {
+    console.warn('Frontend Instituto Amostral: estrutura DOM incompleta para inicialização.');
+    return;
+  }
   carregarUFs();
   setupEventListeners();
 });
 
 function setupEventListeners() {
+  if (!ufSelect || !municipioSelect || !confiancaSelect || !margemSelect || !advToggle || !advContent || !justToggle || !justText) {
+    console.warn('Frontend Instituto Amostral: elementos obrigatórios ausentes em setupEventListeners.');
+    return;
+  }
+
   // Centraliza todos os handlers de interface para manter previsibilidade do
   // comportamento da tela (seleção, cálculo automático, submit e reset).
   ufSelect.addEventListener('change', () => {
@@ -93,13 +103,16 @@ function setupEventListeners() {
     });
   });
 
-  document.getElementById('plano-form').addEventListener('submit', e => {
+  const planoForm = document.getElementById('plano-form');
+  if (planoForm) planoForm.addEventListener('submit', e => {
     e.preventDefault();
     gerarPlano();
   });
 
-  document.getElementById('btn-nova').addEventListener('click', resetUI);
-  document.getElementById('btn-retry').addEventListener('click', resetUI);
+  const btnNova = document.getElementById('btn-nova');
+  const btnRetry = document.getElementById('btn-retry');
+  if (btnNova) btnNova.addEventListener('click', resetUI);
+  if (btnRetry) btnRetry.addEventListener('click', resetUI);
 }
 
 // ─── Carregar UFs ────────────────────────────────────────────────────────────
@@ -168,12 +181,12 @@ async function calcularAmostra() {
   // Mostra painel com loading antes da chamada de rede para feedback imediato.
   show(calcPanel);
   show(calcLoading);
-  calcKpis.innerHTML = '';
+  if (calcKpis) calcKpis.innerHTML = '';
   hide(cenariosSection);
   hide(justBox);
-  calcPanelSub.textContent = `Calculando para ${municipio} / ${uf}...`;
-  btnGerar.disabled = true;
-  btnGerarText.textContent = 'Calculando amostra...';
+  if (calcPanelSub) calcPanelSub.textContent = `Calculando para ${municipio} / ${uf}...`;
+  if (btnGerar) btnGerar.disabled = true;
+  if (btnGerarText) btnGerarText.textContent = 'Calculando amostra...';
 
   try {
     const url = `${API}/calcular-amostra?uf=${encodeURIComponent(uf)}&municipio=${encodeURIComponent(municipio)}&confianca=${confianca}&margem_erro=${margemErro}`;
@@ -183,7 +196,7 @@ async function calcularAmostra() {
     ultimoCalculo = calc;
     renderCalcPanel(calc, municipio, uf);
   } catch (err) {
-    calcPanelSub.textContent = 'Erro ao calcular — verifique o servidor';
+    if (calcPanelSub) calcPanelSub.textContent = 'Erro ao calcular — verifique o servidor';
     hide(calcLoading);
   }
 }
@@ -193,7 +206,7 @@ function renderCalcPanel(calc, municipio, uf) {
   // Converte o payload técnico da API em elementos visuais acionáveis
   // (KPIs, cenários clicáveis e justificativa expandível).
   hide(calcLoading);
-  calcPanelSub.textContent = `${municipio} / ${uf} — baseado em dados TSE + IBGE`;
+  if (calcPanelSub) calcPanelSub.textContent = `${municipio} / ${uf} — baseado em dados TSE + IBGE`;
 
   const p = calc.parametros;
   const fmt = n => n.toLocaleString('pt-BR');
@@ -202,7 +215,7 @@ function renderCalcPanel(calc, municipio, uf) {
     : 'N/D';
 
   // KPIs rápidos
-  calcKpis.innerHTML = `
+  if (calcKpis) calcKpis.innerHTML = `
     <div class="calc-kpi calc-kpi--highlight">
       <span class="calc-kpi-val">${fmt(calc.recomendado)}</span>
       <span class="calc-kpi-label">Amostra Recomendada</span>
@@ -230,6 +243,7 @@ function renderCalcPanel(calc, municipio, uf) {
   `;
 
   // Cenários
+  if (!cenariosGrid) return;
   cenariosGrid.innerHTML = '';
   calc.cenarios.forEach(c => {
     const btn = document.createElement('button');
@@ -253,26 +267,30 @@ function renderCalcPanel(calc, municipio, uf) {
   show(cenariosSection);
 
   // Justificativa
-  justText.textContent = calc.justificativa;
+  if (justText) justText.textContent = calc.justificativa;
   show(justBox);
   hide(justText);
-  justToggle.querySelector('.toggle-arrow').style.transform = '';
+  if (justToggle) {
+    const justArrow = justToggle.querySelector('.toggle-arrow');
+    if (justArrow) justArrow.style.transform = '';
+  }
 
   // Preenche campo de amostra
-  amostraInput.value = calc.recomendado;
+  if (amostraInput) amostraInput.value = calc.recomendado;
   show(amostraBadge);
   atualizarHintAmostra(calc.recomendado, calc.minimo_cochran, 'automático');
 
   // Habilita botão
-  btnGerar.disabled = false;
-  btnGerarText.textContent = `Gerar Plano Amostral — ${fmt(calc.recomendado)} entrevistas`;
+  if (btnGerar) btnGerar.disabled = false;
+  if (btnGerarText) btnGerarText.textContent = `Gerar Plano Amostral — ${fmt(calc.recomendado)} entrevistas`;
 
   // Listener para edição manual
+  if (!amostraInput) return;
   amostraInput.oninput = () => {
     const val = parseInt(amostraInput.value);
     if (val && val >= 100) {
       atualizarHintAmostra(val, calc.minimo_cochran, 'manual');
-      btnGerarText.textContent = `Gerar Plano Amostral — ${val.toLocaleString('pt-BR')} entrevistas`;
+      if (btnGerarText) btnGerarText.textContent = `Gerar Plano Amostral — ${val.toLocaleString('pt-BR')} entrevistas`;
       document.querySelectorAll('.cenario-btn').forEach(b => b.classList.remove('cenario-selected'));
       hide(amostraBadge);
     }
@@ -280,6 +298,8 @@ function renderCalcPanel(calc, municipio, uf) {
 }
 
 function atualizarHintAmostra(valor, minimo, modo) {
+  if (!amostraHint) return;
+
   // Mensagens contextuais para deixar claro se o valor foi automático,
   // escolhido por cenário ou digitado manualmente.
   const fmt = n => n.toLocaleString('pt-BR');
@@ -303,14 +323,18 @@ function atualizarHintAmostra(valor, minimo, modo) {
 function resetCalcPanel() {
   hide(calcPanel);
   ultimoCalculo = null;
-  amostraInput.value = '';
-  amostraInput.placeholder = 'Selecione o município...';
+  if (amostraInput) {
+    amostraInput.value = '';
+    amostraInput.placeholder = 'Selecione o município...';
+  }
   hide(amostraBadge);
-  amostraHint.textContent = 'Selecione o município para calcular automaticamente';
-  amostraHint.className = 'form-hint';
-  btnGerar.disabled = true;
-  btnGerarText.textContent = 'Selecione o município para continuar';
-  amostraInput.oninput = null;
+  if (amostraHint) {
+    amostraHint.textContent = 'Selecione o município para calcular automaticamente';
+    amostraHint.className = 'form-hint';
+  }
+  if (btnGerar) btnGerar.disabled = true;
+  if (btnGerarText) btnGerarText.textContent = 'Selecione o município para continuar';
+  if (amostraInput) amostraInput.oninput = null;
 }
 
 // ─── Gerar Plano ─────────────────────────────────────────────────────────────
@@ -348,7 +372,7 @@ async function gerarPlano() {
 
   } catch (err) {
     hide(loadingEl);
-    errorMsg.textContent = err.message;
+    if (errorMsg) errorMsg.textContent = err.message;
     show(errorCard);
   }
 }
@@ -396,7 +420,8 @@ function renderResultado(data) {
     { icon: '±', label: 'Margem de Erro', val: `±${meta.margem_erro_pct}%`, sub: `real: ±${meta.margem_real_pct}%` },
   ];
 
-  document.getElementById('kpi-grid').innerHTML = kpis.map(k => `
+  const kpiGrid = document.getElementById('kpi-grid');
+  if (kpiGrid) kpiGrid.innerHTML = kpis.map(k => `
     <div class="kpi-card${k.highlight ? ' kpi-card--highlight' : ''}">
       <span class="kpi-icon">${k.icon}</span>
       <span class="kpi-val">${k.val}</span>
@@ -408,6 +433,7 @@ function renderResultado(data) {
   // Downloads
   const arqs = data.arquivos || {};
   const btnsDl = document.getElementById('download-buttons');
+  if (!btnsDl) return;
   btnsDl.innerHTML = '';
 
   const configs = {
@@ -428,11 +454,14 @@ function renderResultado(data) {
 
   // Tabela de zonas
   const zonas = data.zonas || [];
-  document.getElementById('table-desc').textContent =
-    `${zonas.length} zonas · método Hamilton · quotas por gênero`;
+  const tableDesc = document.getElementById('table-desc');
+  if (tableDesc) {
+    tableDesc.textContent = `${zonas.length} zonas · método Hamilton · quotas por gênero`;
+  }
 
   const tbody = document.getElementById('zonas-tbody');
   const tfoot = document.getElementById('zonas-tfoot');
+  if (!tbody || !tfoot) return;
   tbody.innerHTML = '';
   tfoot.innerHTML = '';
 
