@@ -479,9 +479,12 @@ function renderResultado(data) {
 
   // Estratificação real
   const estratificacaoReal = data.estratificacao_real || {};
-  const estratificacaoRealSection = document.getElementById('estratificacao-real-section');
-  const estratificacaoRealContent = document.getElementById('estratificacao-real-content');
-  const estratificacaoRealDesc = document.getElementById('estratificacao-real-desc');
+  const estratificacaoRealSection = document.getElementById('estratificacao-real-section')
+    || document.getElementById('benchmark-section');
+  const estratificacaoRealContent = document.getElementById('estratificacao-real-content')
+    || document.getElementById('benchmark-content');
+  const estratificacaoRealDesc = document.getElementById('estratificacao-real-desc')
+    || document.getElementById('benchmark-desc');
 
   if (estratificacaoReal.tabelas && estratificacaoReal.tabelas.length) {
     const metodologia = estratificacaoReal.metodologia || '';
@@ -489,7 +492,8 @@ function renderResultado(data) {
       estratificacaoRealDesc.textContent = 'Estratificação municipal real com base em dados oficiais';
     }
 
-    estratificacaoRealContent.innerHTML = `
+    if (estratificacaoRealContent) {
+      estratificacaoRealContent.innerHTML = `
       <div style="padding: 0 1.25rem 1rem; color:#475569; font-size:.92rem; line-height:1.45;">${metodologia}</div>
       ${estratificacaoReal.tabelas.map(tb => {
         const linhas = (tb.linhas || []).map(l => `
@@ -529,9 +533,10 @@ function renderResultado(data) {
         ? `<div style="padding:0 1.25rem 1rem;color:#64748b;font-size:.84rem;">Observações: ${estratificacaoReal.observacoes.join(' | ')}</div>`
         : ''}
     `;
+    }
     show(estratificacaoRealSection);
   } else {
-    estratificacaoRealContent.innerHTML = '';
+    if (estratificacaoRealContent) estratificacaoRealContent.innerHTML = '';
     hide(estratificacaoRealSection);
   }
 }
