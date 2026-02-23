@@ -508,12 +508,9 @@ function renderResultado(data) {
 
   // Estratificação real
   const estratificacaoReal = data.estratificacao_real || {};
-  const estratificacaoRealSection = document.getElementById('estratificacao-real-section')
-    || document.getElementById('benchmark-section');
-  const estratificacaoRealContent = document.getElementById('estratificacao-real-content')
-    || document.getElementById('benchmark-content');
-  const estratificacaoRealDesc = document.getElementById('estratificacao-real-desc')
-    || document.getElementById('benchmark-desc');
+  const estratificacaoRealSection = document.getElementById('estratificacao-real-section');
+  const estratificacaoRealContent = document.getElementById('estratificacao-real-content');
+  const estratificacaoRealDesc = document.getElementById('estratificacao-real-desc');
 
   if (estratificacaoReal.tabelas && estratificacaoReal.tabelas.length) {
     const metodologia = estratificacaoReal.metodologia || '';
